@@ -3,17 +3,17 @@ $page_title = "إدارة أنواع المستأجرين";
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/session_manager.php';
 require_login();
-// require_role('admin'); // للمسؤول فقط
+// require_role('admin'); 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
+// Pagination variables
 $current_page_ttype = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
 $items_per_page_ttype = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset_ttype = ($current_page_ttype - 1) * $items_per_page_ttype;
 
-// البحث
+// Search
 $search_term_ttype = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $search_query_part_ttype = '';
 $params_for_count_ttype = []; $types_for_count_ttype = "";
@@ -26,12 +26,12 @@ if (!empty($search_term_ttype)) {
     $params_for_data_ttype = $params_for_count_ttype; $types_for_data_ttype = $types_for_count_ttype;
 }
 
-// العدد الإجمالي لأنواع المستأجرين
+// Get total tenant types
 $total_sql_ttype = "SELECT COUNT(*) as total FROM tenant_types" . $search_query_part_ttype;
 $stmt_total_ttype = $mysqli->prepare($total_sql_ttype);
 $total_tenant_types = 0;
 if ($stmt_total_ttype) {
-    if (!empty($params_for_count_ttype)) $stmt_total_ttype->bind_param($types_for_count_ttype, ...$params_for_count_ttype);
+    if (!empty($params_for_count_ttype) && $types_for_count_ttype !== '') $stmt_total_ttype->bind_param($types_for_count_ttype, ...$params_for_count_ttype);
     $stmt_total_ttype->execute();
     $total_result_ttype = $stmt_total_ttype->get_result();
     $total_tenant_types = ($total_result_ttype && $total_result_ttype->num_rows > 0) ? $total_result_ttype->fetch_assoc()['total'] : 0;
@@ -39,7 +39,7 @@ if ($stmt_total_ttype) {
 } else { error_log("SQL Prepare Error counting tenant types: " . $mysqli->error); }
 $total_pages_ttype = ceil($total_tenant_types / $items_per_page_ttype);
 
-// جلب أنواع المستأجرين للصفحة الحالية
+// Fetch tenant types for current page
 $sql_ttype = "SELECT * FROM tenant_types" . $search_query_part_ttype . " ORDER BY display_name_ar ASC LIMIT ? OFFSET ?";
 $current_data_params_ttype = $params_for_data_ttype;
 $current_data_params_ttype[] = $items_per_page_ttype;
@@ -49,7 +49,7 @@ $current_data_types_ttype = $types_for_data_ttype . 'ii';
 $tenant_types_list_page = [];
 $stmt_ttype = $mysqli->prepare($sql_ttype);
 if ($stmt_ttype) {
-    if (!empty($current_data_params_ttype)) $stmt_ttype->bind_param($current_data_types_ttype, ...$current_data_params_ttype);
+    if (!empty($current_data_params_ttype) && $current_data_types_ttype !== 'ii') $stmt_ttype->bind_param($current_data_types_ttype, ...$current_data_params_ttype);
     else $stmt_ttype->bind_param('ii', $items_per_page_ttype, $offset_ttype);
     $stmt_ttype->execute();
     $result_ttype = $stmt_ttype->get_result();
@@ -114,11 +114,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل نوع المستأجر">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-tenant-type-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-tenant-type-btn"
                                         data-id="<?php echo $ttype_item['id']; ?>"
                                         data-name="<?php echo esc_attr($ttype_item['display_name_ar']); ?>"
                                         data-delete-url="<?php echo base_url('tenant_types/actions.php?action=delete_tenant_type&id=' . $ttype_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: لا يمكن حذف نوع المستأجر إذا كان مستخدماً لأي مستأجرين حاليين."
                                         title="حذف نوع المستأجر">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -143,21 +143,19 @@ $csrf_token = generate_csrf_token();
 </div>
 
 <?php
-// تضمين نافذة إضافة/تعديل نوع المستأجر
-// المفترض أن يتم إنشاء هذا الملف
-// require_once __DIR__ . '/../includes/modals/tenant_type_modal.php'; 
-echo ''; // مؤقتاً
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+require_once __DIR__ . '/../includes/modals/tenant_type_modal.php'; 
+// confirm_delete_modal.php is no longer required
 ?>
 
-</div> <script>
+</div> 
+<script>
 function prepareTenantTypeModal(action, ttypeData = null) {
-    const ttypeModal = document.getElementById('tenantTypeModal'); // اسم النافذة المنبثقة المفترض
-    const modalTitle = ttypeModal.querySelector('.modal-title'); // اسم الكلاس داخل النافذة
-    const ttypeForm = ttypeModal.querySelector('form'); // افتراض وجود form واحد
-    const ttypeIdInput = ttypeModal.querySelector('input[name="tenant_type_id"]'); // اسم الحقل المخفي
-    const actionInput = ttypeModal.querySelector('input[name="action"]');
-    const submitButton = ttypeModal.querySelector('button[type="submit"] span'); // النص داخل زر الإرسال
+    const ttypeModal = document.getElementById('tenantTypeModal'); 
+    const modalTitle = ttypeModal.querySelector('#tenantTypeModalLabel_ttypes');
+    const ttypeForm = ttypeModal.querySelector('#tenantTypeFormModal'); 
+    const ttypeIdInput = ttypeModal.querySelector('#tenant_type_id_modal_ttypes');
+    const actionInput = ttypeModal.querySelector('#tenant_type_form_action_modal_ttypes');
+    const submitButtonText = ttypeModal.querySelector('#tenantTypeSubmitButtonTextModalTtypes');
 
     ttypeForm.reset();
     if(ttypeIdInput) ttypeIdInput.value = '';
@@ -165,56 +163,23 @@ function prepareTenantTypeModal(action, ttypeData = null) {
 
     if (action === 'add_tenant_type') {
         modalTitle.textContent = 'إضافة نوع مستأجر جديد';
-        if(submitButton) submitButton.textContent = 'إضافة النوع';
+        if(submitButtonText) submitButtonText.textContent = 'إضافة النوع';
     } else if (action === 'edit_tenant_type' && ttypeData) {
         modalTitle.textContent = 'تعديل نوع المستأجر: ' + ttypeData.display_name_ar;
-        if(submitButton) submitButton.textContent = 'حفظ التعديلات';
+        if(submitButtonText) submitButtonText.textContent = 'حفظ التعديلات';
         if(ttypeIdInput) ttypeIdInput.value = ttypeData.id;
         
-        // ملء الحقول - تأكد من أن معرفات الحقول في النافذة المنبثقة tenant_type_modal.php صحيحة
-        let nameInput = ttypeModal.querySelector('input[name="type_name"]');
-        let displayNameInput = ttypeModal.querySelector('input[name="display_name_ar"]');
+        let nameInput = ttypeModal.querySelector('#tenant_type_name_modal_ttypes');
+        let displayNameInput = ttypeModal.querySelector('#tenant_type_display_name_ar_modal_ttypes');
         if(nameInput) nameInput.value = ttypeData.type_name || '';
         if(displayNameInput) displayNameInput.value = ttypeData.display_name_ar || '';
     }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalTType = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalTType) {
-        confirmDeleteModalTType.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-tenant-type-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalTType.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف نوع المستأجر "' + itemName + '"؟';
-                
-                var additionalInfo = confirmDeleteModalTType.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: لا يمكن حذف نوع المستأجر إذا كان مستخدماً لأي مستأجرين حاليين.';
+    // Old confirmDeleteModalTType JavaScript block removed.
 
-                var confirmDeleteButton = confirmDeleteModalTType.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonTType = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonTType, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonTType.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonTType.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonTType.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    // يفترض أن يكون لديك نافذة منبثقة بالمعرف tenantTypeModal ونموذج بداخلها
-    const ttypeFormElement = document.querySelector('#tenantTypeModal form'); // تعديل السلكتور
+    const ttypeFormElement = document.querySelector('#tenantTypeModal #tenantTypeFormModal'); // More specific selector
     if(ttypeFormElement) {
         ttypeFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
@@ -227,17 +192,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('tenantTypeModal'));
                 if (data.success) {
-                    var ttypeModalInstance = bootstrap.Modal.getInstance(document.getElementById('tenantTypeModal'));
-                    if(ttypeModalInstance) ttypeModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

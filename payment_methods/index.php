@@ -35,7 +35,7 @@ $total_sql_pm = "SELECT COUNT(*) as total FROM payment_methods" . $search_query_
 $stmt_total_pm = $mysqli->prepare($total_sql_pm);
 $total_payment_methods = 0;
 if ($stmt_total_pm) {
-    if (!empty($params_for_count_pm)) {
+    if (!empty($params_for_count_pm) && $types_for_count_pm !== '') {
         $stmt_total_pm->bind_param($types_for_count_pm, ...$params_for_count_pm);
     }
     $stmt_total_pm->execute();
@@ -57,7 +57,7 @@ $current_data_types_pm = $types_for_data_pm . 'ii';
 $payment_methods_list_page = [];
 $stmt_pm = $mysqli->prepare($sql_pm);
 if ($stmt_pm) {
-    if (!empty($current_data_params_pm)) {
+    if (!empty($current_data_params_pm) && $current_data_types_pm !== 'ii') { // Check if types string is not just 'ii'
         $stmt_pm->bind_param($current_data_types_pm, ...$current_data_params_pm);
     } else {
         $stmt_pm->bind_param('ii', $items_per_page_pm, $offset_pm);
@@ -135,11 +135,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل طريقة الدفع">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-payment-method-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-payment-method-btn"
                                         data-id="<?php echo $pm_item['id']; ?>"
                                         data-name="<?php echo esc_attr($pm_item['display_name_ar']); ?>"
                                         data-delete-url="<?php echo base_url('payment_methods/actions.php?action=delete_payment_method&id=' . $pm_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: لا يمكن حذف طريقة الدفع إذا كانت مستخدمة في أي عمليات دفع. يمكنك تعطيلها بدلاً من ذلك."
                                         title="حذف طريقة الدفع">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -164,76 +164,43 @@ $csrf_token = generate_csrf_token();
 </div>
 
 <?php
-// تضمين نافذة إضافة/تعديل طريقة الدفع
 require_once __DIR__ . '/../includes/modals/payment_method_modal.php';
-// تضمين نافذة تأكيد الحذف
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer needed here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function preparePaymentMethodModal(action, pmData = null) {
     const pmModal = document.getElementById('paymentMethodModal');
     const modalTitle = pmModal.querySelector('#paymentMethodModalLabel_pmethods');
     const pmForm = pmModal.querySelector('#paymentMethodFormModal');
     const pmIdInput = pmModal.querySelector('#payment_method_id_modal_pmethods');
     const actionInput = pmModal.querySelector('#payment_method_form_action_modal_pmethods');
-    const submitButton = pmModal.querySelector('#paymentMethodSubmitButtonTextModalPmethods');
+    const submitButtonText = pmModal.querySelector('#paymentMethodSubmitButtonTextModalPmethods');
     const isActiveCheckbox = pmModal.querySelector('#is_active_modal_pmethods');
-
 
     pmForm.reset();
     pmIdInput.value = '';
     actionInput.value = action;
-    isActiveCheckbox.checked = true; // Default to active for new
+    isActiveCheckbox.checked = true; 
 
     if (action === 'add_payment_method') {
         modalTitle.textContent = 'إضافة طريقة دفع جديدة';
-        submitButton.textContent = 'إضافة الطريقة';
+        if(submitButtonText) submitButtonText.textContent = 'إضافة الطريقة';
     } else if (action === 'edit_payment_method' && pmData) {
         modalTitle.textContent = 'تعديل طريقة الدفع: ' + pmData.display_name_ar;
-        submitButton.textContent = 'حفظ التعديلات';
+        if(submitButtonText) submitButtonText.textContent = 'حفظ التعديلات';
         pmIdInput.value = pmData.id;
         
         if(document.getElementById('method_name_modal_pmethods')) document.getElementById('method_name_modal_pmethods').value = pmData.method_name || '';
         if(document.getElementById('display_name_ar_modal_pmethods')) document.getElementById('display_name_ar_modal_pmethods').value = pmData.display_name_ar || '';
         if(document.getElementById('zatca_code_modal_pmethods')) document.getElementById('zatca_code_modal_pmethods').value = pmData.zatca_code || '';
-        isActiveCheckbox.checked = (pmData.is_active == 1);
+        isActiveCheckbox.checked = (pmData.is_active == 1 || pmData.is_active === true);
     }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalPMethod = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalPMethod) {
-        confirmDeleteModalPMethod.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-payment-method-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalPMethod.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف طريقة الدفع "' + itemName + '"؟';
-                
-                var additionalInfo = confirmDeleteModalPMethod.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: لا يمكن حذف طريقة الدفع إذا كانت مستخدمة في أي عمليات دفع. يمكنك تعطيلها بدلاً من ذلك.';
-
-                var confirmDeleteButton = confirmDeleteModalPMethod.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonPMethod = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonPMethod, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonPMethod.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonPMethod.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonPMethod.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete; // For GET based delete
-                        }
-                    });
-                }
-            }
-        });
-    }
+    // Old confirmDeleteModalPMethod JavaScript block removed.
 
     const pmFormElement = document.getElementById('paymentMethodFormModal');
     if(pmFormElement) {
@@ -248,17 +215,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
                 if (data.success) {
-                    var pmModalInstance = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
-                    if(pmModalInstance) pmModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

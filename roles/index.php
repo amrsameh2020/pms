@@ -119,11 +119,11 @@ $csrf_token = generate_csrf_token();
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
                                 <?php if (!in_array($role_item['role_name'], ['admin', 'staff'])): // لا يمكن حذف الأدوار المحمية ?>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-role-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-role-btn"
                                         data-id="<?php echo $role_item['id']; ?>"
                                         data-name="<?php echo esc_attr($role_item['display_name_ar']); ?>"
                                         data-delete-url="<?php echo base_url('roles/actions.php?action=delete_role&id=' . $role_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: لا يمكن حذف الدور إذا كان معيناً لأي مستخدمين."
                                         title="حذف الدور">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -152,24 +152,25 @@ $csrf_token = generate_csrf_token();
 
 <?php
 require_once __DIR__ . '/../includes/modals/role_modal.php';
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// Note: confirm_delete_modal.php is no longer needed if the global SweetAlert handler is used.
+// You can remove this line: require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
 ?>
 
-</div> <script>
+</div> <?php /* This was an unclosed div in the original, it's closed by footer_resources.php */ ?>
+<script>
 function prepareRoleModal(action, roleData = null) {
     const roleModal = document.getElementById('roleModal');
     const modalTitle = roleModal.querySelector('#roleModalLabel_roles_page');
     const roleForm = roleModal.querySelector('#roleFormModal');
     const roleIdInput = roleModal.querySelector('#role_id_modal_roles_page');
     const actionInput = roleModal.querySelector('#role_form_action_modal_roles_page');
-    const submitButton = roleModal.querySelector('#roleSubmitButtonTextModalRolesPage');
-    const roleNameInput = roleModal.querySelector('#role_name_modal_roles_page');
-
+    const submitButton = roleModal.querySelector('#roleSubmitButtonTextModalRolesPage'); // Corrected ID
+    const roleNameInput = roleModal.querySelector('#role_name_modal_roles_page'); // Corrected ID
 
     roleForm.reset();
     if(roleIdInput) roleIdInput.value = '';
     actionInput.value = action;
-    roleNameInput.readOnly = false; // Allow editing by default
+    roleNameInput.readOnly = false; 
 
     if (action === 'add_role') {
         modalTitle.textContent = 'إضافة دور جديد';
@@ -183,7 +184,6 @@ function prepareRoleModal(action, roleData = null) {
         if(document.getElementById('role_display_name_ar_modal_roles_page')) document.getElementById('role_display_name_ar_modal_roles_page').value = roleData.display_name_ar || '';
         if(document.getElementById('role_description_modal_roles_page')) document.getElementById('role_description_modal_roles_page').value = roleData.description || '';
 
-        // Prevent editing role_name for protected roles
         if (roleData.role_name === 'admin' || roleData.role_name === 'staff') {
             roleNameInput.readOnly = true;
             let smallHelp = roleNameInput.nextElementSibling;
@@ -200,40 +200,9 @@ function prepareRoleModal(action, roleData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalRole = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalRole) {
-        confirmDeleteModalRole.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-role-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalRole.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف الدور "' + itemName + '"؟';
-                
-                var additionalInfo = confirmDeleteModalRole.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: لا يمكن حذف الدور إذا كان معيناً لأي مستخدمين.';
+    // The old confirmDeleteModalRole JavaScript block is removed as it's handled globally.
 
-                var confirmDeleteButton = confirmDeleteModalRole.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonRole = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonRole, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonRole.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonRole.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonRole.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    const roleFormElement = document.getElementById('roleFormModal');
+    const roleFormElement = document.getElementById('roleFormModal'); // Corrected ID
     if(roleFormElement) {
         roleFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
@@ -246,17 +215,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('roleModal'));
                 if (data.success) {
-                    var roleModalInstance = bootstrap.Modal.getInstance(document.getElementById('roleModal'));
-                    if(roleModalInstance) roleModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload();
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

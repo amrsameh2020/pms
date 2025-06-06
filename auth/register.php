@@ -2,21 +2,28 @@
 // auth/register.php
 $page_title = "إنشاء حساب جديد";
 
-// التأكد من تحميل الإعدادات الأساسية
 if (file_exists(__DIR__ . '/../db_connect.php')) {
     require_once __DIR__ . '/../db_connect.php';
 } else {
     if (!defined('APP_NAME')) define('APP_NAME', 'نظام إدارة العقارات');
-    if (!defined('APP_BASE_URL')) define('APP_BASE_URL', '../');
-    error_log("CRITICAL: db_connect.php not found from auth/register.php");
+    if (!defined('APP_BASE_URL')){
+        $protocol_reg = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+        $host_reg = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+        define('APP_BASE_URL', rtrim($protocol_reg . $host_reg . dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\'));
+    }
+    error_log("CRITICAL: db_connect.php not found from auth/register.php.");
 }
 
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-require_once __DIR__ . '/../includes/functions.php';
+if (file_exists(__DIR__ . '/../includes/functions.php')) {
+    require_once __DIR__ . '/../includes/functions.php';
+} else {
+    function base_url($path = '') { return rtrim(APP_BASE_URL, '/') . '/' . ltrim($path, '/'); }
+    error_log("CRITICAL: functions.php not found from auth/register.php.");
+}
 
-// إذا كان المستخدم مسجل دخوله بالفعل، قم بإعادة توجيهه إلى لوحة التحكم
 if (isset($_SESSION['user_id'])) {
     redirect(base_url('dashboard.php'));
 }
@@ -44,9 +51,9 @@ $csrf_token = generate_csrf_token();
             min-height: 100vh;
             padding: 15px;
         }
-        .register-card { /* Changed from login-card for clarity if needed */
+        .register-card {
             width: 100%;
-            max-width: 500px; /* Slightly wider for more fields */
+            max-width: 500px;
             background-color: #fff;
             border-radius: 10px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
@@ -66,7 +73,7 @@ $csrf_token = generate_csrf_token();
         .register-card-body {
             padding: 30px;
         }
-        .btn-register { /* Changed from btn-login */
+        .btn-register {
             background-color: #28a745;
             border-color: #28a745;
             color: white;
@@ -104,14 +111,8 @@ $csrf_token = generate_csrf_token();
         </div>
         <div class="register-card-body">
             <?php
-            if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
-                echo '<div class="alert alert-' . htmlspecialchars($_SESSION['message_type']) . ' alert-dismissible fade show" role="alert">';
-                echo htmlspecialchars($_SESSION['message']);
-                echo '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
-                echo '</div>';
-                unset($_SESSION['message']);
-                unset($_SESSION['message_type']);
-            }
+            // Bootstrap alert rendering REMOVED from here. SweetAlert in footer will handle $_SESSION['flash_message']
+            // Errors are displayed inline with form fields now.
             ?>
             <form id="registerForm" action="<?php echo base_url('auth/process_registration.php'); ?>" method="POST" novalidate>
                 <input type="hidden" name="csrf_token" value="<?php echo esc_attr($csrf_token); ?>">
@@ -160,7 +161,6 @@ $csrf_token = generate_csrf_token();
                     يجب أن تتكون كلمة المرور من 8 أحرف على الأقل، وتحتوي على حرف كبير واحد على الأقل، وحرف صغير واحد، ورقم واحد، ورمز خاص واحد على الأقل (مثل !@#$%^&*).
                 </p>
 
-
                 <div class="d-grid mb-3">
                     <button class="btn btn-register btn-lg" type="submit">
                         <i class="bi bi-person-plus-fill me-2"></i> إنشاء الحساب
@@ -171,8 +171,9 @@ $csrf_token = generate_csrf_token();
                     <p class="mb-0">لديك حساب بالفعل؟ <a href="<?php echo base_url('auth/login.php'); ?>" class="text-decoration-none fw-bold">تسجيل الدخول</a></p>
                 </div>
                 <?php
-                    unset($_SESSION['old_data']);
-                    unset($_SESSION['errors']);
+                    // Clear session data after displaying it
+                    if (isset($_SESSION['old_data'])) unset($_SESSION['old_data']);
+                    if (isset($_SESSION['errors'])) unset($_SESSION['errors']);
                 ?>
             </form>
         </div>
@@ -181,22 +182,12 @@ $csrf_token = generate_csrf_token();
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        (function () {
-            'use strict'
-            var forms = document.querySelectorAll('#registerForm')
-            Array.prototype.slice.call(forms)
-                .forEach(function (form) {
-                    form.addEventListener('submit', function (event) {
-                        if (!form.checkValidity()) {
-                            event.preventDefault()
-                            event.stopPropagation()
-                        }
-                        form.classList.add('was-validated')
-                    }, false)
-                })
-        })()
-    </script>
+<?php
+// Include footer_resources.php to enable SweetAlert for session messages from process_registration.php
+if (file_exists(__DIR__ . '/../includes/footer_resources.php')) {
+    require_once __DIR__ . '/../includes/footer_resources.php';
+}
+?>
+<?php /* Original script tags removed as they are now in footer_resources.php */ ?>
 </body>
 </html>

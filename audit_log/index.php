@@ -82,7 +82,7 @@ $current_data_types_audit = $types_for_data_audit . 'ii';
 $audit_logs_list = [];
 $stmt_audit = $mysqli->prepare($sql_audit);
 if ($stmt_audit) {
-    if (!empty($current_data_params_audit)) $stmt_audit->bind_param($current_data_types_audit, ...$current_data_params_audit);
+    if (!empty($current_data_params_audit) && $current_data_types_audit !== '') $stmt_audit->bind_param($current_data_types_audit, ...$current_data_params_audit);
     else $stmt_audit->bind_param('ii', $items_per_page_audit, $offset_audit);
     $stmt_audit->execute();
     $result_audit = $stmt_audit->get_result();
@@ -91,11 +91,11 @@ if ($stmt_audit) {
 } else { error_log("SQL Prepare Error fetching audit logs: " . $mysqli->error); }
 
 // For filters: Get distinct users, action_types, target_tables
-$distinct_users_audit = $mysqli->query("SELECT DISTINCT u.id, u.full_name FROM audit_log al JOIN users u ON al.user_id = u.id WHERE al.user_id IS NOT NULL ORDER BY u.full_name ASC")->fetch_all(MYSQLI_ASSOC);
+$distinct_users_audit = $mysqli->query("SELECT DISTINCT u.id, u.full_name, u.username FROM audit_log al JOIN users u ON al.user_id = u.id WHERE al.user_id IS NOT NULL ORDER BY u.full_name ASC")->fetch_all(MYSQLI_ASSOC);
 $distinct_actions_audit = $mysqli->query("SELECT DISTINCT action_type FROM audit_log ORDER BY action_type ASC")->fetch_all(MYSQLI_ASSOC);
-$distinct_tables_audit = $mysqli->query("SELECT DISTINCT target_table FROM audit_log WHERE target_table IS NOT NULL ORDER BY target_table ASC")->fetch_all(MYSQLI_ASSOC);
+$distinct_tables_audit = $mysqli->query("SELECT DISTINCT target_table FROM audit_log WHERE target_table IS NOT NULL AND target_table != '' ORDER BY target_table ASC")->fetch_all(MYSQLI_ASSOC);
 
-$csrf_token = generate_csrf_token(); // Not used on this page for actions, but good practice
+$csrf_token = generate_csrf_token(); 
 ?>
 
 <div class="container-fluid">
@@ -113,8 +113,9 @@ $csrf_token = generate_csrf_token(); // Not used on this page for actions, but g
                     <select id="filter_user_id_audit_page" name="user_id" class="form-select form-select-sm">
                         <option value="">-- كل المستخدمين --</option>
                         <?php foreach($distinct_users_audit as $user_filter): ?>
-                            <option value="<?php echo $user_filter['id']; ?>" <?php echo ($filter_user_id_audit == $user_filter['id']) ? 'selected' : ''; ?>><?php echo esc_html($user_filter['full_name']); ?></option>
+                            <option value="<?php echo $user_filter['id']; ?>" <?php echo ($filter_user_id_audit == $user_filter['id']) ? 'selected' : ''; ?>><?php echo esc_html($user_filter['full_name'] . ' (' . $user_filter['username'] . ')'); ?></option>
                         <?php endforeach; ?>
+                         <option value="NULL" <?php echo ($filter_user_id_audit === 'NULL') ? 'selected' : ''; ?>>نظام/غير مسجل</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -188,14 +189,21 @@ $csrf_token = generate_csrf_token(); // Not used on this page for actions, but g
                                     <i class="bi bi-eye"></i> عرض
                                 </button>
                                 <div class="modal fade" id="auditDetailsModal_<?php echo $log_item['id']; ?>" tabindex="-1" aria-labelledby="auditDetailsModalLabel_<?php echo $log_item['id']; ?>" aria-hidden="true">
-                                  <div class="modal-dialog modal-lg">
+                                  <div class="modal-dialog modal-lg modal-dialog-scrollable">
                                     <div class="modal-content">
                                       <div class="modal-header">
                                         <h5 class="modal-title" id="auditDetailsModalLabel_<?php echo $log_item['id']; ?>">تفاصيل السجل #<?php echo $log_item['id']; ?></h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                       </div>
                                       <div class="modal-body">
-                                        <pre style="white-space: pre-wrap; word-wrap: break-word;"><?php echo esc_html(json_encode(json_decode($log_item['details']), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); ?></pre>
+                                        <pre style="white-space: pre-wrap; word-wrap: break-word; background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; border-radius: 0.25rem;"><?php 
+                                            $details_array = json_decode($log_item['details'], true);
+                                            if (json_last_error() === JSON_ERROR_NONE) {
+                                                echo esc_html(json_encode($details_array, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                                            } else {
+                                                echo esc_html($log_item['details']); // Show raw if not valid JSON
+                                            }
+                                        ?></pre>
                                       </div>
                                       <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button>
@@ -228,4 +236,5 @@ $csrf_token = generate_csrf_token(); // Not used on this page for actions, but g
     </div>
 </div>
 
-</div> <?php require_once __DIR__ . '/../includes/footer_resources.php'; ?>
+</div> <?php /* This was an unclosed div in original, now handled by footer_resources.php */ ?>
+<?php require_once __DIR__ . '/../includes/footer_resources.php'; ?>

@@ -13,7 +13,7 @@ $items_per_page_pay = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset_pay = ($current_page_pay - 1) * $items_per_page_pay;
 
 // Filtering and Search
-$search_term_pay = isset($_GET['search']) ? sanitize_input($_GET['search']) : ''; // Invoice number or tenant name
+$search_term_pay = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $filter_payment_method_id_pay = isset($_GET['payment_method_id']) && filter_var($_GET['payment_method_id'], FILTER_VALIDATE_INT) ? (int)$_GET['payment_method_id'] : '';
 $filter_status_pay = isset($_GET['status']) ? sanitize_input($_GET['status']) : '';
 $filter_date_from_pay = isset($_GET['date_from']) ? sanitize_input($_GET['date_from']) : '';
@@ -24,7 +24,7 @@ $params_for_count_pay = []; $types_for_count_pay = "";
 $params_for_data_pay = [];  $types_for_data_pay = "";
 
 if (!empty($search_term_pay)) {
-    $where_clauses_pay[] = "(i.invoice_number LIKE ? OR t.full_name LIKE ? OR pay.reference_number LIKE ?)"; // search by invoice no, tenant name or receipt_number (stored as reference_number)
+    $where_clauses_pay[] = "(i.invoice_number LIKE ? OR t.full_name LIKE ? OR pay.reference_number LIKE ?)";
     $search_like_pay = "%" . $search_term_pay . "%";
     for ($k=0; $k<3; $k++) {
         $params_for_count_pay[] = $search_like_pay; $types_for_count_pay .= "s";
@@ -66,7 +66,7 @@ $total_sql_pay = "SELECT COUNT(pay.id) as total
 $stmt_total_pay = $mysqli->prepare($total_sql_pay);
 $total_payments = 0;
 if ($stmt_total_pay) {
-    if (!empty($params_for_count_pay)) {
+    if (!empty($params_for_count_pay) && $types_for_count_pay !== '') {
         $stmt_total_pay->bind_param($types_for_count_pay, ...$params_for_count_pay);
     }
     $stmt_total_pay->execute();
@@ -100,7 +100,7 @@ $current_data_types_pay = $types_for_data_pay . 'ii';
 $payments_list = [];
 $stmt_pay = $mysqli->prepare($sql_pay);
 if ($stmt_pay) {
-    if (!empty($current_data_params_pay)) {
+    if (!empty($current_data_params_pay) && $current_data_types_pay !== '') {
         $stmt_pay->bind_param($current_data_types_pay, ...$current_data_params_pay);
     } else {
          $stmt_pay->bind_param('ii', $items_per_page_pay, $offset_pay);
@@ -118,7 +118,7 @@ $payment_methods_filter_list_pay = [];
 $pm_filter_q = "SELECT id, display_name_ar FROM payment_methods WHERE is_active = 1 ORDER BY display_name_ar ASC";
 if($pm_filter_r = $mysqli->query($pm_filter_q)){ while($row = $pm_filter_r->fetch_assoc()){ $payment_methods_filter_list_pay[] = $row;} $pm_filter_r->free(); }
 
-$payment_statuses_filter_options = [ // تم تغيير الاسم من payment_statuses_modal_options
+$payment_statuses_filter_options = [ 
     '' => '-- كل الحالات --',
     'Pending' => 'معلقة',
     'Completed' => 'مكتملة',
@@ -216,7 +216,7 @@ $csrf_token = generate_csrf_token();
                             <td><?php echo number_format($payment_item['amount_paid'], 2); ?> ريال</td>
                             <td><?php echo esc_html($payment_item['payment_method_name'] ?: '-'); ?></td>
                             <td><?php echo format_date_custom($payment_item['payment_date'], 'Y-m-d'); ?></td>
-                            <td><?php echo esc_html($payment_item['reference_number'] ?: '-'); // كان receipt_number ?></td>
+                            <td><?php echo esc_html($payment_item['reference_number'] ?: '-'); ?></td>
                             <td>
                                 <?php
                                 $status_class_pay = 'secondary';
@@ -234,12 +234,12 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل الدفعة">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <?php if ($payment_item['payment_status'] !== 'Completed'): // لا يمكن حذف دفعة مكتملة بسهولة، قد تحتاج لعملية استرداد ?>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-payment-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <?php if ($payment_item['payment_status'] !== 'Completed'): ?>
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-payment-btn"
                                         data-id="<?php echo $payment_item['id']; ?>"
                                         data-name="الدفعة للمستأجر <?php echo esc_attr($payment_item['tenant_name']); ?> (فاتورة: <?php echo esc_attr($payment_item['invoice_number']); ?>)"
                                         data-delete-url="<?php echo base_url('payments/payment_actions.php?action=delete_payment&id=' . $payment_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="سيتم تحديث حالة الفاتورة المرتبطة بعد الحذف."
                                         title="حذف الدفعة">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -274,55 +274,52 @@ $csrf_token = generate_csrf_token();
 </div>
 
 <?php
-require_once __DIR__ . '/../includes/modals/payment_modal.php'; // النافذة الخاصة بتسجيل الدفعات
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+require_once __DIR__ . '/../includes/modals/payment_modal.php';
+// confirm_delete_modal.php is no longer required here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function preparePaymentModal(action, paymentData = null) {
-    const paymentModal = document.getElementById('paymentModal'); // معرف النافذة المنبثقة لتسجيل الدفعات
+    const paymentModal = document.getElementById('paymentModal'); 
     const modalTitle = paymentModal.querySelector('#paymentModalLabel_payments_page');
     const paymentForm = paymentModal.querySelector('#paymentFormModal');
     const paymentIdInput = paymentModal.querySelector('#payment_id_modal_payments_page');
     const actionInput = paymentModal.querySelector('#payment_form_action_modal_payments_page');
-    const submitButton = paymentModal.querySelector('#paymentSubmitButtonTextModalPaymentsPage');
+    const submitButtonText = paymentModal.querySelector('#paymentSubmitButtonTextModalPaymentsPage');
     const invoiceSelect = paymentModal.querySelector('#invoice_id_modal_payments_page');
     const amountPaidInput = paymentModal.querySelector('#amount_paid_modal_payments_page');
     const invoiceDetailsText = paymentModal.querySelector('#invoice_details_text_payments_modal');
     const currentAttachmentSpan = paymentModal.querySelector('#current_payment_attachment_text_modal');
 
-
-    paymentForm.reset(); // This will also clear the file input
+    paymentForm.reset(); 
     paymentIdInput.value = '';
     actionInput.value = action;
     invoiceDetailsText.textContent = '';
     if(currentAttachmentSpan) currentAttachmentSpan.innerHTML = '';
-
-    // Enable invoice select for add, disable for edit (or handle carefully)
     invoiceSelect.disabled = (action === 'edit_payment');
-
 
     if (action === 'add_payment') {
         modalTitle.textContent = 'تسجيل دفعة جديدة';
-        submitButton.textContent = 'تسجيل الدفعة';
+        submitButtonText.textContent = 'تسجيل الدفعة';
         if(document.getElementById('payment_date_modal_payments_page')) document.getElementById('payment_date_modal_payments_page').value = new Date().toISOString().slice(0,10);
         if(document.getElementById('payment_status_modal_payments_page')) document.getElementById('payment_status_modal_payments_page').value = 'Completed';
 
     } else if (action === 'edit_payment' && paymentData) {
         modalTitle.textContent = 'تعديل بيانات الدفعة للفاتورة: ' + (paymentData.invoice_number || 'غير محددة');
-        submitButton.textContent = 'حفظ التعديلات';
+        submitButtonText.textContent = 'حفظ التعديلات';
         paymentIdInput.value = paymentData.id;
         
-        if(invoiceSelect) invoiceSelect.value = paymentData.invoice_id || '';
-        // Manually trigger change event if needed to update remaining amount text
-        var event = new Event('change');
-        if(invoiceSelect) invoiceSelect.dispatchEvent(event);
-
+        if(invoiceSelect) { // Populate and simulate change for edit
+            invoiceSelect.value = paymentData.invoice_id || '';
+            var event = new Event('change', { 'bubbles': true });
+            invoiceSelect.dispatchEvent(event); // To trigger remaining amount update
+        }
         if(amountPaidInput) amountPaidInput.value = paymentData.amount_paid || '';
         if(document.getElementById('payment_date_modal_payments_page')) document.getElementById('payment_date_modal_payments_page').value = paymentData.payment_date || '';
         if(document.getElementById('payment_method_id_modal_payments_page')) document.getElementById('payment_method_id_modal_payments_page').value = paymentData.payment_method_id || '';
         if(document.getElementById('payment_status_modal_payments_page')) document.getElementById('payment_status_modal_payments_page').value = paymentData.payment_status || '';
-        if(document.getElementById('receipt_number_modal_payments_page')) document.getElementById('receipt_number_modal_payments_page').value = paymentData.reference_number || ''; // reference_number is the DB column
+        if(document.getElementById('receipt_number_modal_payments_page')) document.getElementById('receipt_number_modal_payments_page').value = paymentData.reference_number || ''; 
         if(document.getElementById('payment_notes_modal_payments_page')) document.getElementById('payment_notes_modal_payments_page').value = paymentData.payment_notes || '';
         
         if (paymentData.attachment_path && currentAttachmentSpan) {
@@ -333,38 +330,7 @@ function preparePaymentModal(action, paymentData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalPaymentPage = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalPaymentPage) {
-        confirmDeleteModalPaymentPage.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-payment-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalPaymentPage.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف ' + itemName + '؟';
-                
-                var additionalInfo = confirmDeleteModalPaymentPage.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'سيتم تحديث حالة الفاتورة المرتبطة بعد الحذف.';
-
-                var confirmDeleteButton = confirmDeleteModalPaymentPage.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonPay = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonPay, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonPay.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonPay.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonPay.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
+    // Old confirmDeleteModalPaymentPage JavaScript block removed.
 
     const paymentFormElement = document.getElementById('paymentFormModal');
     if(paymentFormElement) {
@@ -379,17 +345,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('paymentModal'));
                 if (data.success) {
-                    var paymentModalInstance = bootstrap.Modal.getInstance(document.getElementById('paymentModal'));
-                    if(paymentModalInstance) paymentModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع في تسجيل الدفعة.');
+                 Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع في تسجيل الدفعة.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

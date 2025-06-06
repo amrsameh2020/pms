@@ -11,12 +11,8 @@ if (!defined('APP_BASE_URL')) {
     $script_path_for_fallback = isset($_SERVER['SCRIPT_NAME']) ? (string)$_SERVER['SCRIPT_NAME'] : '';
     $fallback_base_dir_hr = '';
     if (!empty($script_path_for_fallback)) {
-        $path_parts = explode('/', trim($script_path_for_fallback, '/'));
+        $path_parts = explode('/', trim(dirname($script_path_for_fallback), '/\\'));
         if (count($path_parts) > 0) {
-            // Try to construct a base path assuming the first segment is the project folder
-            // This is a guess and might need adjustment based on actual deployment.
-            // If SCRIPT_NAME is /pms/index.php, $path_parts[0] is 'pms'.
-            // If SCRIPT_NAME is /index.php (in webroot), this logic might not create a subfolder.
             $project_folder_guess = $path_parts[0];
             if ($project_folder_guess !== 'index.php' && $project_folder_guess !== basename($script_path_for_fallback)) {
                  $fallback_base_dir_hr = '/' . $project_folder_guess;
@@ -67,7 +63,7 @@ $app_display_name_for_header = defined('APP_NAME') ? APP_NAME : 'نظام إدا
             bottom: 0;
             z-index: 1030; 
             overflow-y: auto;
-            padding-top: 0; /* Remove padding-top if header is part of sidebar */
+            padding-top: 0; 
         }
         .sidebar .nav-link {
             color: #adb5bd; padding: 0.75rem 1.25rem; display: flex;
@@ -80,23 +76,22 @@ $app_display_name_for_header = defined('APP_NAME') ? APP_NAME : 'نظام إدا
             color: #fff; background-color: #495057;
         }
         .sidebar .sidebar-header {
-            padding: 1.25rem; /* Adjusted padding */
+            padding: 1.25rem; 
             text-align: center;
             border-bottom: 1px solid #495057;
             margin-bottom: 1rem;
-            background-color: #343a40; /* Same as sidebar */
-            position: sticky; /* Make header sticky within sidebar */
+            background-color: #343a40; 
+            position: sticky; 
             top: 0;
-            z-index: 10; /* Above sidebar content */
+            z-index: 10; 
         }
         .sidebar .sidebar-header h3 { color: #fff; margin: 0; font-size: 1.5rem; }
         .sidebar .sidebar-header small { font-size: 0.8rem; }
 
-
         .main-content {
             flex-grow: 1;
             padding: 20px;
-            padding-top: 70px; /* Add padding-top to avoid overlap with fixed toggle button */
+            padding-top: 70px; 
             transition: margin-right 0.3s ease-in-out;
             min-height: 100vh;
             margin-right: 280px; 
@@ -107,12 +102,12 @@ $app_display_name_for_header = defined('APP_NAME') ? APP_NAME : 'نظام إدا
             position: fixed;
             top: 15px;
             right: 15px; 
-            z-index: 1035; /* Above sidebar when closed, below when open if sidebar is higher */
-            background-color: #495057; /* Darker button */
+            z-index: 1035; 
+            background-color: #495057; 
             color: white;
             border: none;
             border-radius: 0.3rem;
-            padding: 0.5rem 0.75rem; /* Slightly larger padding */
+            padding: 0.5rem 0.75rem; 
             display: none; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
@@ -130,20 +125,14 @@ $app_display_name_for_header = defined('APP_NAME') ? APP_NAME : 'نظام إدا
         .card-header h5.card-title { font-size: 1.1rem; font-weight: 600; }
         .modal-header { background-color: #28a745; color: white; }
         .modal-header .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
-        .alert-container {
-            position: fixed; top: 80px; /* Adjusted top to be below toggle button */
-            left: 50%; transform: translateX(-50%); /* Centered */
-            z-index: 1060; width: auto; min-width: 300px; max-width: 90%;
-        }
+        /* alert-container div can be removed if not used for other purposes */
 
         @media (max-width: 991.98px) { 
             .sidebar {
                 margin-right: -280px; 
-                /* transform: translateX(280px); Use margin for better layout flow with fixed elements */
             }
             .sidebar.active {
                 margin-right: 0;
-                /* transform: translateX(0); */
             }
             .main-content {
                 margin-right: 0; 
@@ -160,16 +149,4 @@ $app_display_name_for_header = defined('APP_NAME') ? APP_NAME : 'نظام إدا
         <i class="bi bi-list fs-5"></i> </button>
     <div class="wrapper"> 
         <div class="main-content" id="mainContent">
-            <div class="alert-container">
-                <?php
-                if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
-                    echo '<div class="alert alert-' . htmlspecialchars($_SESSION['message_type']) . ' alert-dismissible fade show" role="alert">';
-                    echo htmlspecialchars($_SESSION['message']);
-                    echo '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
-                    echo '</div>';
-                    unset($_SESSION['message']);
-                    unset($_SESSION['message_type']);
-                }
-                ?>
-            </div>
-        
+            <?php /* The Bootstrap alert rendering PHP block has been removed from here. */ ?>

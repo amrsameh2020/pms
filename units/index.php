@@ -1,11 +1,10 @@
 <?php
-$page_title = "إدارة وحدات العقار"; // Default title
+$page_title = "إدارة وحدات العقار"; 
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/session_manager.php';
 require_login();
 require_once __DIR__ . '/../includes/functions.php';
 
-// Get property_id from URL
 $property_id_for_page = isset($_GET['property_id']) ? (int)$_GET['property_id'] : 0;
 
 if ($property_id_for_page <= 0) {
@@ -13,16 +12,14 @@ if ($property_id_for_page <= 0) {
     redirect(base_url('properties/index.php'));
 }
 
-// Fetch parent property data
 $stmt_property = $mysqli->prepare("SELECT id, name, property_code FROM properties WHERE id = ?");
-$property_data_for_page = null; // Initialize
+$property_data_for_page = null; 
 if ($stmt_property) {
     $stmt_property->bind_param("i", $property_id_for_page);
     $stmt_property->execute();
     $result_property = $stmt_property->get_result();
     if ($result_property->num_rows > 0) {
         $property_data_for_page = $result_property->fetch_assoc();
-        // Set page title to include property name
         $page_title = "وحدات العقار: " . esc_html($property_data_for_page['name']) . " (" . esc_html($property_data_for_page['property_code']) . ")";
     } else {
         set_message("العقار المحدد غير موجود.", "warning");
@@ -35,34 +32,24 @@ if ($stmt_property) {
     redirect(base_url('properties/index.php'));
 }
 
-// Include header and navigation AFTER fetching property data and setting $page_title
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// Pagination variables for units
 $current_page_unit = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
 $items_per_page_unit = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset_unit = ($current_page_unit - 1) * $items_per_page_unit;
 
-// Filtering for units
 $filter_unit_status_page = isset($_GET['status']) ? sanitize_input($_GET['status']) : '';
 $filter_unit_type_id_page = isset($_GET['unit_type_id']) && filter_var($_GET['unit_type_id'], FILTER_VALIDATE_INT) ? (int)$_GET['unit_type_id'] : '';
 
-
-// Define unit statuses array directly for this page's filter dropdown
 $unit_statuses_for_page_filter_options = [
-    '' => '-- الكل --', // Option for "All"
-    'Vacant' => 'شاغرة',
-    'Occupied' => 'مشغولة',
-    'Under Maintenance' => 'تحت الصيانة',
-    'Reserved' => 'محجوزة'
+    '' => '-- الكل --', 
+    'Vacant' => 'شاغرة', 'Occupied' => 'مشغولة', 'Under Maintenance' => 'تحت الصيانة', 'Reserved' => 'محجوزة'
 ];
-// This array is used for displaying status in the table
 $unit_statuses_display_for_table = [
     'Vacant' => 'شاغرة', 'Occupied' => 'مشغولة', 'Under Maintenance' => 'تحت الصيانة', 'Reserved' => 'محجوزة'
 ];
 
-// Fetch unit types for filter
 $unit_types_filter_list_page = [];
 $utypes_query_filter_page = "SELECT id, display_name_ar FROM unit_types ORDER BY display_name_ar ASC";
 if($utypes_result_filter_page = $mysqli->query($utypes_query_filter_page)){
@@ -71,7 +58,6 @@ if($utypes_result_filter_page = $mysqli->query($utypes_query_filter_page)){
     }
     $utypes_result_filter_page->free();
 }
-
 
 $where_clauses_unit_page = ["u.property_id = ?"];
 $params_for_count_unit_page = [$property_id_for_page]; $types_for_count_unit_page = "i";
@@ -90,12 +76,10 @@ if (!empty($filter_unit_type_id_page)) {
 
 $where_sql_unit_page = " WHERE " . implode(" AND ", $where_clauses_unit_page);
 
-// Total units for the current property with filters
 $total_sql_unit = "SELECT COUNT(u.id) as total FROM units u" . $where_sql_unit_page;
 $stmt_total_unit = $mysqli->prepare($total_sql_unit);
 $total_units_for_property_page = 0; 
 if ($stmt_total_unit) {
-    // Only bind if there are parameters beyond the initial property_id
     if (count($params_for_count_unit_page) > 0 && !empty($types_for_count_unit_page)) {
         $stmt_total_unit->bind_param($types_for_count_unit_page, ...$params_for_count_unit_page);
     }
@@ -108,7 +92,6 @@ if ($stmt_total_unit) {
 }
 $total_pages_unit = ceil($total_units_for_property_page / $items_per_page_unit);
 
-// Fetch units for the current page
 $sql_units_page = "SELECT u.id, u.unit_number, u.floor_number, u.size_sqm, u.bedrooms, u.bathrooms, u.status, 
                           u.base_rent_price, u.features, u.notes, u.unit_type_id, 
                           ut.display_name_ar as unit_type_name 
@@ -124,9 +107,10 @@ $current_data_types_unit_page = $types_for_data_unit_page . 'ii';
 $units_list_on_page = [];
 $stmt_units_page = $mysqli->prepare($sql_units_page);
 if ($stmt_units_page) {
-    // Only bind if there are parameters to bind
-    if (count($current_data_params_unit_page) > 0 && !empty($current_data_types_unit_page)) {
+    if (count($current_data_params_unit_page) > 0 && !empty($current_data_types_unit_page) && $current_data_types_unit_page !== 'ii') { // Check if types is not just for limit/offset
        $stmt_units_page->bind_param($current_data_types_unit_page, ...$current_data_params_unit_page);
+    } else { // Only limit and offset if no other params
+        $stmt_units_page->bind_param('ii', $items_per_page_unit, $offset_unit);
     }
     $stmt_units_page->execute();
     $result_units_page = $stmt_units_page->get_result();
@@ -219,7 +203,7 @@ $csrf_token = generate_csrf_token();
                         <tr>
                             <td><?php echo $row_num_unit_page++; ?></td>
                             <td><?php echo esc_html($unit_item_page['unit_number']); ?></td>
-                            <td><?php echo esc_html($unit_item_page['unit_type_name'] ?: '-'); // عرض اسم نوع الوحدة ?></td>
+                            <td><?php echo esc_html($unit_item_page['unit_type_name'] ?: '-'); ?></td>
                             <td><?php echo ($unit_item_page['floor_number'] !== null) ? esc_html($unit_item_page['floor_number']) : '-'; ?></td>
                             <td><?php echo ($unit_item_page['size_sqm'] !== null) ? number_format($unit_item_page['size_sqm'], 2) : '-'; ?></td>
                             <td><?php echo ($unit_item_page['bedrooms'] !== null) ? esc_html($unit_item_page['bedrooms']) : '-'; ?></td>
@@ -237,11 +221,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل الوحدة">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-unit-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-unit-btn"
                                         data-id="<?php echo $unit_item_page['id']; ?>"
                                         data-name="الوحدة <?php echo esc_attr($unit_item_page['unit_number']); ?> في العقار <?php echo esc_attr($property_data_for_page['name']); ?>"
                                         data-delete-url="<?php echo base_url('units/unit_actions.php?action=delete_unit&id=' . $unit_item_page['id'] . '&property_id=' . $property_id_for_page . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: حذف الوحدة لا يمكن التراجع عنه وقد يؤثر على عقود الإيجار المرتبطة."
                                         title="حذف الوحدة">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -271,10 +255,11 @@ $csrf_token = generate_csrf_token();
 
 <?php
 require_once __DIR__ . '/../includes/modals/unit_modal.php';
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer required here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function prepareUnitModal(action, unitData = null, propertyId, propertyName) {
     const unitModal = document.getElementById('unitModal');
     const modalTitle = unitModal.querySelector('#unitModalLabel_page');
@@ -284,7 +269,7 @@ function prepareUnitModal(action, unitData = null, propertyId, propertyName) {
     const propertyNameDisplayModal = unitModal.querySelector('#property_name_for_unit_modal_display_page');
     const actionInput = unitModal.querySelector('#unit_form_action_modal_page');
     const submitButtonText = unitModal.querySelector('#unitSubmitButtonTextModalPage');
-    const unitStatusWarning = document.getElementById('unit_status_warning_modal'); // افترض وجوده في modal.php الرئيسي
+    // const unitStatusWarning = document.getElementById('unit_status_warning_modal'); // This ID is not in unit_modal.php
 
     unitForm.reset();
     unitIdInput.value = '';
@@ -292,11 +277,10 @@ function prepareUnitModal(action, unitData = null, propertyId, propertyName) {
     
     if(propertyIdInputModal) propertyIdInputModal.value = propertyId;
     if(propertyNameDisplayModal) propertyNameDisplayModal.textContent = propertyName || 'العقار غير محدد';
-    if(unitStatusWarning) unitStatusWarning.classList.add('d-none');
+    // if(unitStatusWarning) unitStatusWarning.classList.add('d-none');
 
 
-    const formUrl = '<?php echo base_url('units/unit_actions.php'); ?>';
-    // unitForm.action = formUrl; // This line is not strictly needed if using AJAX/fetch for submission
+    // unitForm.action = '<?php echo base_url('units/unit_actions.php'); ?>'; // Not strictly needed for fetch
 
     if (action === 'add_unit') {
         modalTitle.textContent = 'إضافة وحدة جديدة إلى: ' + propertyName;
@@ -320,46 +304,14 @@ function prepareUnitModal(action, unitData = null, propertyId, propertyName) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalUnitPage = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalUnitPage) {
-        confirmDeleteModalUnitPage.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-unit-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalUnitPage.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف ' + itemName + '؟';
-                
-                var additionalInfo = confirmDeleteModalUnitPage.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: حذف الوحدة لا يمكن التراجع عنه وقد يؤثر على عقود الإيجار المرتبطة (إذا لم يتم التعامل معها).';
-
-                var confirmDeleteButton = confirmDeleteModalUnitPage.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButton = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButton, confirmDeleteButton);
-                    
-                    newConfirmDeleteButton.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButton.removeAttribute('href');
-                    
-                    newConfirmDeleteButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
+    // Old confirmDeleteModalUnitPage JavaScript block removed.
     
     const unitFormElement = document.getElementById('unitFormModal');
     if(unitFormElement) {
         unitFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
             const formData = new FormData(unitFormElement);
-            // The action is already set on the form by prepareUnitModal
-            const actionUrl = unitFormElement.getAttribute('action'); 
+            const actionUrl = '<?php echo base_url('units/unit_actions.php'); ?>'; 
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -367,18 +319,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('unitModal'));
                 if (data.success) {
-                    var unitModalInstance = bootstrap.Modal.getInstance(document.getElementById('unitModal'));
-                    if(unitModalInstance) unitModalInstance.hide();
-                    // Reload page or update table dynamically
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); // Simple alert for now
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                 Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

@@ -7,20 +7,19 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
-$current_page_lease = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1; // تم تغيير اسم المتغير
-$items_per_page_lease = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10; // تم تغيير اسم المتغير
-$offset_lease = ($current_page_lease - 1) * $items_per_page_lease; // تم تغيير اسم المتغير
+// Pagination variables
+$current_page_lease = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
+$items_per_page_lease = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
+$offset_lease = ($current_page_lease - 1) * $items_per_page_lease;
 
-// وظيفة البحث والفلترة
-$search_term_lease = isset($_GET['search']) ? sanitize_input($_GET['search']) : ''; // تم تغيير اسم المتغير
-$filter_status_lease = isset($_GET['status']) ? sanitize_input($_GET['status']) : ''; // تم تغيير اسم المتغير
-$filter_property_id_lease = isset($_GET['property_id']) && filter_var($_GET['property_id'], FILTER_VALIDATE_INT) ? (int)$_GET['property_id'] : ''; // تم تغيير اسم المتغير
-$filter_tenant_id_lease = isset($_GET['tenant_id']) && filter_var($_GET['tenant_id'], FILTER_VALIDATE_INT) ? (int)$_GET['tenant_id'] : ''; // تم تغيير اسم المتغير
-$filter_lease_type_id_page = isset($_GET['lease_type_id']) && filter_var($_GET['lease_type_id'], FILTER_VALIDATE_INT) ? (int)$_GET['lease_type_id'] : ''; // فلتر جديد
+// Search and filter functionality
+$search_term_lease = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+$filter_status_lease = isset($_GET['status']) ? sanitize_input($_GET['status']) : '';
+$filter_property_id_lease = isset($_GET['property_id']) && filter_var($_GET['property_id'], FILTER_VALIDATE_INT) ? (int)$_GET['property_id'] : '';
+$filter_tenant_id_lease = isset($_GET['tenant_id']) && filter_var($_GET['tenant_id'], FILTER_VALIDATE_INT) ? (int)$_GET['tenant_id'] : '';
+$filter_lease_type_id_page = isset($_GET['lease_type_id']) && filter_var($_GET['lease_type_id'], FILTER_VALIDATE_INT) ? (int)$_GET['lease_type_id'] : '';
 
-
-$where_clauses_lease = []; // تم تغيير اسم المتغير
+$where_clauses_lease = [];
 $params_for_count_lease = []; $types_for_count_lease = "";
 $params_for_data_lease = [];  $types_for_data_lease = "";
 
@@ -38,7 +37,7 @@ if (!empty($filter_status_lease)) {
     $params_for_data_lease[] = $filter_status_lease;  $types_for_data_lease .= "s";
 }
 if (!empty($filter_property_id_lease)) {
-    $where_clauses_lease[] = "p.id = ?";
+    $where_clauses_lease[] = "p.id = ?"; // Assuming filter is on properties.id
     $params_for_count_lease[] = $filter_property_id_lease; $types_for_count_lease .= "i";
     $params_for_data_lease[] = $filter_property_id_lease;  $types_for_data_lease .= "i";
 }
@@ -53,23 +52,22 @@ if (!empty($filter_lease_type_id_page)) {
     $params_for_data_lease[] = $filter_lease_type_id_page;  $types_for_data_lease .= "i";
 }
 
-
-$where_sql_lease = ""; // تم تغيير اسم المتغير
+$where_sql_lease = "";
 if (!empty($where_clauses_lease)) {
     $where_sql_lease = " WHERE " . implode(" AND ", $where_clauses_lease);
 }
 
-// الحصول على العدد الإجمالي للعقود
+// Get total number of leases
 $total_sql_lease = "SELECT COUNT(l.id) as total 
               FROM leases l
               JOIN units u ON l.unit_id = u.id
               JOIN properties p ON u.property_id = p.id
               JOIN tenants t ON l.tenant_id = t.id
-              LEFT JOIN lease_types lt ON l.lease_type_id = lt.id" . $where_sql_lease; // تم تغيير اسم المتغير و إضافة الربط
+              LEFT JOIN lease_types lt ON l.lease_type_id = lt.id" . $where_sql_lease;
 $stmt_total_lease = $mysqli->prepare($total_sql_lease);
-$total_leases_page = 0; // تم تغيير اسم المتغير
+$total_leases_page = 0;
 if ($stmt_total_lease) {
-    if (!empty($params_for_count_lease)) {
+    if (!empty($params_for_count_lease) && $types_for_count_lease !== '') {
         $stmt_total_lease->bind_param($types_for_count_lease, ...$params_for_count_lease);
     }
     $stmt_total_lease->execute();
@@ -79,16 +77,14 @@ if ($stmt_total_lease) {
 } else {
     error_log("SQL Prepare Error for counting leases: " . $mysqli->error);
 }
-$total_pages_lease = ceil($total_leases_page / $items_per_page_lease); // تم تغيير اسم المتغير
+$total_pages_lease = ceil($total_leases_page / $items_per_page_lease);
 
-
-// جلب العقود للصفحة الحالية
-// تم تحديث الاستعلام ليشمل الحقول الجديدة واسم نوع العقد
+// Fetch leases for the current page
 $sql_lease = "SELECT l.id, l.lease_contract_number, l.lease_start_date, l.lease_end_date, l.rent_amount, l.status,
                      l.payment_frequency, l.payment_due_day, l.deposit_amount, l.grace_period_days, l.notes, l.contract_document_path,
                      l.lease_type_id, l.next_billing_date, l.last_billed_on, 
                      u.unit_number, u.id as unit_id_for_lease, 
-                     p.name as property_name, p.property_code, 
+                     p.name as property_name, p.property_code, p.id as property_id,
                      t.full_name as tenant_name, t.id as tenant_id_for_lease, t.national_id_iqama as tenant_id_number,
                      lt.display_name_ar as lease_type_name
               FROM leases l
@@ -103,10 +99,10 @@ $current_data_params_lease[] = $items_per_page_lease;
 $current_data_params_lease[] = $offset_lease;
 $current_data_types_lease = $types_for_data_lease . 'ii';
 
-$leases_list = []; // تم تغيير اسم المتغير
+$leases_list = [];
 $stmt_lease = $mysqli->prepare($sql_lease);
 if ($stmt_lease) {
-    if (!empty($current_data_params_lease)) {
+    if (!empty($current_data_params_lease) && $current_data_types_lease !== '') {
         $stmt_lease->bind_param($current_data_types_lease, ...$current_data_params_lease);
     } else {
          $stmt_lease->bind_param('ii', $items_per_page_lease, $offset_lease);
@@ -119,16 +115,16 @@ if ($stmt_lease) {
     error_log("SQL Prepare Error for fetching leases: " . $mysqli->error);
 }
 
-// جلب قوائم للفلترة
-$properties_filter_list_lease = []; // تم تغيير الاسم
+// Fetch lists for filters
+$properties_filter_list_lease = [];
 $prop_q_lease = "SELECT id, name, property_code FROM properties ORDER BY name ASC";
 if($prop_r_lease = $mysqli->query($prop_q_lease)){ while($row = $prop_r_lease->fetch_assoc()){ $properties_filter_list_lease[] = $row;} $prop_r_lease->free(); }
 
-$tenants_filter_list_lease = []; // تم تغيير الاسم
+$tenants_filter_list_lease = [];
 $ten_q_lease = "SELECT id, full_name, national_id_iqama FROM tenants ORDER BY full_name ASC";
 if($ten_r_lease = $mysqli->query($ten_q_lease)){ while($row = $ten_r_lease->fetch_assoc()){ $tenants_filter_list_lease[] = $row;} $ten_r_lease->free(); }
 
-$lease_types_filter_list_page = []; // جلب أنواع العقود للفلتر
+$lease_types_filter_list_page = [];
 $ltypes_query_filter_page = "SELECT id, display_name_ar FROM lease_types ORDER BY display_name_ar ASC";
 if($ltypes_result_filter_page = $mysqli->query($ltypes_query_filter_page)){
     while($ltype_row_filter_page = $ltypes_result_filter_page->fetch_assoc()){
@@ -137,11 +133,9 @@ if($ltypes_result_filter_page = $mysqli->query($ltypes_query_filter_page)){
     $ltypes_result_filter_page->free();
 }
 
-
-$lease_statuses_display_page = [ // تم تغيير الاسم
+$lease_statuses_display_page = [
     'Pending' => 'معلق', 'Active' => 'نشط', 'Expired' => 'منتهي الصلاحية', 'Terminated' => 'ملغي', 'Draft' => 'مسودة'
 ];
-
 
 $csrf_token = generate_csrf_token();
 ?>
@@ -170,7 +164,7 @@ $csrf_token = generate_csrf_token();
                     <select id="filter_status_lease_page" name="status" class="form-select form-select-sm">
                         <option value="">-- كل الحالات --</option>
                         <?php foreach ($lease_statuses_display_page as $key => $value): ?>
-                            <option value="<?php echo $key; ?>" <?php echo ($filter_status_lease == $key) ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
+                            <option value="<?php echo $key; ?>" <?php echo ($filter_status_lease == $key && $filter_status_lease !== '') ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -228,7 +222,7 @@ $csrf_token = generate_csrf_token();
                     </thead>
                     <tbody>
                         <?php $row_num_lease = ($current_page_lease - 1) * $items_per_page_lease + 1; ?>
-                        <?php foreach ($leases_list as $lease_item_page): // تم تغيير اسم المتغير ?>
+                        <?php foreach ($leases_list as $lease_item_page): ?>
                         <tr>
                             <td><?php echo $row_num_lease++; ?></td>
                             <td><?php echo esc_html($lease_item_page['lease_contract_number']); ?></td>
@@ -240,7 +234,7 @@ $csrf_token = generate_csrf_token();
                             <td><?php echo number_format($lease_item_page['rent_amount'], 2); ?> ريال</td>
                             <td>
                                 <?php
-                                $status_class_lease = 'secondary'; // تم تغيير الاسم
+                                $status_class_lease = 'secondary'; 
                                 if ($lease_item_page['status'] === 'Active') $status_class_lease = 'success';
                                 elseif ($lease_item_page['status'] === 'Expired') $status_class_lease = 'danger';
                                 elseif ($lease_item_page['status'] === 'Pending') $status_class_lease = 'warning';
@@ -255,11 +249,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل بيانات العقد">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-lease-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-lease-btn"
                                         data-id="<?php echo $lease_item_page['id']; ?>"
                                         data-name="العقد رقم <?php echo esc_attr($lease_item_page['lease_contract_number']); ?>"
                                         data-delete-url="<?php echo base_url('leases/lease_actions.php?action=delete_lease&id=' . $lease_item_page['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: حذف العقد لا يحذف الفواتير المرتبطة به تلقائياً."
                                         title="حذف العقد">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -282,7 +276,7 @@ $csrf_token = generate_csrf_token();
         <?php if ($total_pages_lease > 1): ?>
         <div class="card-footer bg-light">
             <?php
-            $pagination_params_lease = []; // تم تغيير الاسم
+            $pagination_params_lease = []; 
             if (!empty($search_term_lease)) $pagination_params_lease['search'] = $search_term_lease;
             if (!empty($filter_status_lease)) $pagination_params_lease['status'] = $filter_status_lease;
             if (!empty($filter_property_id_lease)) $pagination_params_lease['property_id'] = $filter_property_id_lease;
@@ -297,53 +291,47 @@ $csrf_token = generate_csrf_token();
 
 <?php
 require_once __DIR__ . '/../includes/modals/lease_modal.php';
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer required here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function prepareLeaseModal(action, leaseData = null) {
-    const leaseModal = document.getElementById('leaseModal'); // معرف النافذة المنبثقة
+    const leaseModal = document.getElementById('leaseModal'); 
     const modalTitle = leaseModal.querySelector('#leaseModalLabel_leases');
     const leaseForm = leaseModal.querySelector('#leaseFormModal');
     const leaseIdInput = leaseModal.querySelector('#lease_id_modal_leases');
     const actionInput = leaseModal.querySelector('#lease_form_action_modal_leases');
-    const submitButton = leaseModal.querySelector('#leaseSubmitButtonTextModalLeases');
+    const submitButtonText = leaseModal.querySelector('#leaseSubmitButtonTextModalLeases'); // Corrected
     const currentDocSpan = leaseModal.querySelector('#current_contract_document_modal_leases');
     const unitStatusWarningLease = leaseModal.querySelector('#unit_status_warning_modal_leases');
-
 
     leaseForm.reset();
     leaseIdInput.value = '';
     actionInput.value = action;
-    currentDocSpan.innerHTML = ''; // مسح معلومات المستند الحالي
+    currentDocSpan.innerHTML = ''; 
     if(unitStatusWarningLease) unitStatusWarningLease.classList.add('d-none');
 
-
-    const formUrl = '<?php echo base_url('leases/lease_actions.php'); ?>';
-    // leaseForm.action = formUrl; // ليس ضروريًا لـ fetch
+    // leaseForm.action = '<?php echo base_url('leases/lease_actions.php'); ?>'; // Not strictly needed for fetch
 
     if (action === 'add_lease') {
         modalTitle.textContent = 'إضافة عقد إيجار جديد';
-        submitButton.textContent = 'إضافة العقد';
-         // Set default dates
+        submitButtonText.textContent = 'إضافة العقد';
         const today = new Date().toISOString().slice(0,10);
         if(document.getElementById('lease_start_date_modal_leases')) document.getElementById('lease_start_date_modal_leases').value = today;
-        // Calculate end date one year from today for example
         let endDate = new Date();
         endDate.setFullYear(endDate.getFullYear() + 1);
         if(document.getElementById('lease_end_date_modal_leases')) document.getElementById('lease_end_date_modal_leases').value = endDate.toISOString().slice(0,10);
-        if(document.getElementById('lease_status_modal_leases')) document.getElementById('lease_status_modal_leases').value = 'Pending'; // Default status
+        if(document.getElementById('lease_status_modal_leases')) document.getElementById('lease_status_modal_leases').value = 'Pending';
 
     } else if (action === 'edit_lease' && leaseData) {
         modalTitle.textContent = 'تعديل بيانات عقد الإيجار: ' + leaseData.lease_contract_number;
-        submitButton.textContent = 'حفظ التعديلات';
+        submitButtonText.textContent = 'حفظ التعديلات';
         leaseIdInput.value = leaseData.id;
         
-        // ملء حقول النموذج ببيانات العقد للتعديل
         if(document.getElementById('lease_contract_number_modal_leases')) document.getElementById('lease_contract_number_modal_leases').value = leaseData.lease_contract_number || '';
         if(document.getElementById('unit_id_modal_leases')) {
-            document.getElementById('unit_id_modal_leases').value = leaseData.unit_id_for_lease || leaseData.unit_id || ''; // unit_id_for_lease from SELECT alias
-             // Trigger change to show warning if unit is not vacant
+            document.getElementById('unit_id_modal_leases').value = leaseData.unit_id_for_lease || leaseData.unit_id || '';
             var unitSelectEdit = document.getElementById('unit_id_modal_leases');
             var selectedUnitOptionEdit = unitSelectEdit.options[unitSelectEdit.selectedIndex];
             if (selectedUnitOptionEdit && unitStatusWarningLease) {
@@ -376,45 +364,14 @@ function prepareLeaseModal(action, leaseData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalLeasePage = document.getElementById('confirmDeleteModal'); // تم تغيير الاسم
-    if (confirmDeleteModalLeasePage) {
-        confirmDeleteModalLeasePage.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-lease-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalLeasePage.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف ' + itemName + '؟';
-                
-                var additionalInfo = confirmDeleteModalLeasePage.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: حذف العقد لا يحذف الفواتير المرتبطة به تلقائياً، ولكن قد يجعلها يتيمة إذا لم يتم التعامل معها.';
+    // Old confirmDeleteModalLeasePage JavaScript block removed.
 
-                var confirmDeleteButton = confirmDeleteModalLeasePage.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonLease = confirmDeleteButton.cloneNode(true); // تم تغيير الاسم
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonLease, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonLease.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonLease.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonLease.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    const leaseFormElement = document.getElementById('leaseFormModal'); // تم تغيير ID
+    const leaseFormElement = document.getElementById('leaseFormModal'); 
     if(leaseFormElement) {
         leaseFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
             const formData = new FormData(leaseFormElement);
-            const actionUrl = leaseFormElement.getAttribute('action');
+            const actionUrl = '<?php echo base_url('leases/lease_actions.php'); ?>'; // Form action set in JS
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -422,17 +379,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('leaseModal'));
                 if (data.success) {
-                    var leaseModalInstance = bootstrap.Modal.getInstance(document.getElementById('leaseModal'));
-                    if(leaseModalInstance) leaseModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

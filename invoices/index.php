@@ -7,14 +7,14 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
+// Pagination variables
 $current_page = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
-$items_per_page = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : (defined('ITEMS_PER_PAGE') && filter_var(ITEMS_PER_PAGE, FILTER_VALIDATE_INT) ? (int)ITEMS_PER_PAGE : 10);
+$items_per_page = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset = ($current_page - 1) * $items_per_page;
 
-// وظيفة البحث والفلترة
-$search_term = isset($_GET['search']) ? sanitize_input($_GET['search']) : ''; // رقم الفاتورة، اسم المستأجر، رقم العقد
-$filter_status = isset($_GET['status']) ? sanitize_input($_GET['status']) : ''; // حالة الفاتورة الداخلية
+// Search and filter functionality
+$search_term = isset($_GET['search']) ? sanitize_input($_GET['search']) : ''; 
+$filter_status = isset($_GET['status']) ? sanitize_input($_GET['status']) : ''; 
 $filter_zatca_status = isset($_GET['zatca_status']) ? sanitize_input($_GET['zatca_status']) : '';
 $filter_lease_id = isset($_GET['lease_id']) && filter_var($_GET['lease_id'], FILTER_VALIDATE_INT) ? (int)$_GET['lease_id'] : '';
 $filter_date_from = isset($_GET['date_from']) ? sanitize_input($_GET['date_from']) : '';
@@ -28,7 +28,7 @@ $params_for_data = [];  $types_for_data = "";
 if (!empty($search_term)) {
     $where_clauses[] = "(i.invoice_number LIKE ? OR t.full_name LIKE ? OR l.lease_contract_number LIKE ?)";
     $search_like = "%" . $search_term . "%";
-    for ($k=0; $k<3; $k++) { // 3 placeholders
+    for ($k=0; $k<3; $k++) { 
         $params_for_count[] = $search_like; $types_for_count .= "s";
         $params_for_data[] = $search_like;  $types_for_data .= "s";
     }
@@ -65,28 +65,28 @@ if (!empty($where_clauses)) {
     $where_sql = " WHERE " . implode(" AND ", $where_clauses);
 }
 
-// الحصول على العدد الإجمالي للفواتير
+// Get total number of invoices
 $total_sql = "SELECT COUNT(i.id) as total 
               FROM invoices i
               LEFT JOIN leases l ON i.lease_id = l.id
               LEFT JOIN tenants t ON i.tenant_id = t.id" . $where_sql;
 $stmt_total = $mysqli->prepare($total_sql);
-if ($stmt_total && !empty($params_for_count)) {
-    $stmt_total->bind_param($types_for_count, ...$params_for_count);
-}
+$total_invoices = 0;
 if ($stmt_total) {
+    if (!empty($params_for_count) && $types_for_count !== '') {
+        $stmt_total->bind_param($types_for_count, ...$params_for_count);
+    }
     $stmt_total->execute();
     $total_result = $stmt_total->get_result();
     $total_invoices = ($total_result) ? $total_result->fetch_assoc()['total'] : 0;
     $stmt_total->close();
 } else {
-    $total_invoices = 0;
     error_log("SQL Prepare Error for counting invoices: " . $mysqli->error);
 }
 $total_pages = ceil($total_invoices / $items_per_page);
 
 
-// جلب الفواتير للصفحة الحالية
+// Fetch invoices for the current page
 $sql = "SELECT i.*, l.lease_contract_number, t.full_name as tenant_name
         FROM invoices i
         LEFT JOIN leases l ON i.lease_id = l.id
@@ -99,8 +99,9 @@ $current_data_params[] = $offset;
 $current_data_types = $types_for_data . 'ii';
 
 $stmt = $mysqli->prepare($sql);
+$invoices = [];
 if ($stmt) {
-    if (!empty($current_data_params)) {
+    if (!empty($current_data_params) && $current_data_types !== '') {
         $stmt->bind_param($current_data_types, ...$current_data_params);
     } else {
          $stmt->bind_param('ii', $items_per_page, $offset);
@@ -111,13 +112,8 @@ if ($stmt) {
     if ($stmt) $stmt->close();
 } else {
     error_log("SQL Prepare Error for fetching invoices: " . $mysqli->error);
-    $invoices = [];
 }
 
-// لعرض أسماء الحالات والفلاتر بالعربية
-// $invoice_statuses_display is defined in includes/modals/invoice_modal.php
-// $zatca_statuses_display is defined in includes/modals/invoice_modal.php (or should be if used there)
-// For filters, we add an "All" option
 $invoice_statuses_display_filter = ['' => '-- الكل --'] + (isset($invoice_statuses_display) ? $invoice_statuses_display : ['Draft' => 'مسودة', 'Unpaid' => 'غير مدفوعة', 'Partially Paid' => 'مدفوعة جزئياً', 'Paid' => 'مدفوعة', 'Overdue' => 'متأخرة', 'Cancelled' => 'ملغاة', 'Void' => 'لاغية']);
 $zatca_statuses_display_filter = [
     '' => '-- الكل --', 'Not Sent' => 'لم ترسل', 'Sent' => 'مرسلة', 'Generating' => 'قيد الإنشاء',
@@ -126,11 +122,10 @@ $zatca_statuses_display_filter = [
     'Cleared' => 'تم التصريح', 'Reporting Pending' => 'الإبلاغ معلق', 'Reported' => 'تم الإبلاغ',
     'Rejected' => 'مرفوضة', 'Error' => 'خطأ'
 ];
-// $active_leases_filter is defined in includes/modals/invoice_modal.php
-// We need to ensure it's available or re-fetch if necessary for filter dropdowns.
-if (!isset($active_leases_list_for_modal)) { // In case modal wasn't included or variable scope
+
+if (!isset($active_leases_list_for_modal)) { 
     $active_leases_list_for_modal = [];
-    $leases_q_filter = "SELECT l.id as lease_id, l.lease_contract_number, t.full_name as tenant_name
+    $leases_q_filter = "SELECT l.id as lease_id, l.lease_contract_number, t.full_name as tenant_name, t.id as tenant_id_for_lease_in_invoice_modal
                        FROM leases l
                        JOIN tenants t ON l.tenant_id = t.id
                        WHERE l.status = 'Active' OR l.status = 'Pending'
@@ -147,7 +142,7 @@ foreach($active_leases_list_for_modal as $l_f){
 
 
 $csrf_token = generate_csrf_token();
-$default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00; // For JS in modal
+$default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
 ?>
 
 <div class="container-fluid">
@@ -159,7 +154,7 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
         <div class="card-header bg-light">
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">قائمة الفواتير (<?php echo $total_invoices; ?>)</h5>
-                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#invoiceModal" data-action="add_invoice">
+                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#invoiceModal" onclick="prepareInvoiceModal('add_invoice')">
                     <i class="bi bi-plus-circle"></i> إنشاء فاتورة جديدة
                 </button>
             </div>
@@ -173,7 +168,7 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
                     <label for="filter_status_inv" class="form-label form-label-sm">حالة الفاتورة</label>
                     <select id="filter_status_inv" name="status" class="form-select form-select-sm">
                         <?php foreach ($invoice_statuses_display_filter as $key => $value): ?>
-                            <option value="<?php echo $key; ?>" <?php echo ($filter_status == $key) ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
+                            <option value="<?php echo $key; ?>" <?php echo ($filter_status == $key && $filter_status !== '') ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -181,7 +176,7 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
                     <label for="filter_zatca_status_inv" class="form-label form-label-sm">حالة ZATCA</label>
                     <select id="filter_zatca_status_inv" name="zatca_status" class="form-select form-select-sm">
                         <?php foreach ($zatca_statuses_display_filter as $key => $value): ?>
-                            <option value="<?php echo $key; ?>" <?php echo ($filter_zatca_status == $key) ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
+                            <option value="<?php echo $key; ?>" <?php echo ($filter_zatca_status == $key && $filter_zatca_status !== '') ? 'selected' : ''; ?>><?php echo esc_html($value); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -205,7 +200,7 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
             <?php if (empty($invoices) && (!empty($search_term) || !empty($filter_status) || !empty($filter_zatca_status) || !empty($filter_lease_id) || !empty($filter_date_from) || !empty($filter_date_to))): ?>
                 <div class="alert alert-warning text-center">لا توجد فواتير تطابق معايير البحث أو الفلترة.</div>
             <?php elseif (empty($invoices)): ?>
-                <div class="alert alert-info text-center">لا توجد فواتير مسجلة حالياً. يمكنك <a href="#" data-bs-toggle="modal" data-bs-target="#invoiceModal" data-action="add_invoice">إنشاء فاتورة جديدة</a>.</div>
+                <div class="alert alert-info text-center">لا توجد فواتير مسجلة حالياً. يمكنك <a href="#" data-bs-toggle="modal" data-bs-target="#invoiceModal" onclick="prepareInvoiceModal('add_invoice')">إنشاء فاتورة جديدة</a>.</div>
             <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-striped table-hover table-bordered table-sm">
@@ -260,24 +255,24 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
                                 <div class="btn-group btn-group-sm" role="group">
                                     <button type="button" class="btn btn-outline-warning edit-invoice-btn"
                                             data-bs-toggle="modal" data-bs-target="#invoiceModal"
-                                            data-invoice_id="<?php echo $invoice['id']; ?>"
-                                            data-action="edit_invoice"
+                                            data-invoice='<?php echo htmlspecialchars(json_encode($invoice), ENT_QUOTES, 'UTF-8'); ?>'
+                                            onclick="prepareInvoiceModal('edit_invoice', this.getAttribute('data-invoice'))"
                                             title="تعديل الفاتورة">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
-                                    <button type="button" class="btn btn-outline-danger delete-invoice-btn"
-                                            data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                    <button type="button" class="btn btn-outline-danger sweet-delete-btn delete-invoice-btn"
                                             data-id="<?php echo $invoice['id']; ?>"
                                             data-name="الفاتورة رقم <?php echo esc_attr($invoice['invoice_number']); ?>"
                                             data-delete-url="<?php echo base_url('invoices/invoice_actions.php?action=delete_invoice&id=' . $invoice['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                            data-additional-message="سيتم حذف الفاتورة وبنودها. لا يمكن التراجع عن هذا الإجراء. تأكد من عدم وجود دفعات مرتبطة."
                                             title="حذف الفاتورة">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                      <a href="<?php echo base_url('invoices/view_invoice.php?id=' . $invoice['id']); ?>" class="btn btn-outline-primary" title="عرض/طباعة الفاتورة">
                                         <i class="bi bi-eye-fill"></i>
                                     </a>
-                                    <?php if (in_array($invoice['zatca_status'], ['Not Sent', 'Error', 'Rejected', 'Compliance Check Failed'])): ?>
-                                    <button type="button" class="btn btn-outline-success process-zatca-btn"
+                                    <?php if (in_array($invoice['zatca_status'], ['Not Sent', 'Error', 'Rejected', 'Compliance Check Failed']) || ZATCA_CURRENT_ENVIRONMENT === 'simulation'): ?>
+                                    <button type="button" class="btn btn-outline-success sweet-process-zatca-btn"
                                             data-invoice-id="<?php echo $invoice['id']; ?>"
                                             data-invoice-type-zatca="<?php echo esc_attr($invoice['invoice_type_zatca']); ?>"
                                             title="معالجة وإرسال إلى ZATCA">
@@ -311,183 +306,194 @@ $default_vat_percentage_js = defined('VAT_PERCENTAGE') ? VAT_PERCENTAGE : 15.00;
 </div>
 
 <?php
-// تضمين نافذة إضافة/تعديل الفاتورة
 require_once __DIR__ . '/../includes/modals/invoice_modal.php';
-// تضمين نافذة تأكيد الحذف
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer needed here
 ?>
 
-</div> <script>
-document.addEventListener('DOMContentLoaded', function () {
-    var invoiceModal = document.getElementById('invoiceModal');
-    var itemsContainerModal = invoiceModal.querySelector('#invoiceItemsContainerModal'); // Moved outside for broader scope
-    var itemTemplateModal = invoiceModal.querySelector('#invoiceItemTemplateModal'); // Moved outside
+</div> 
+<script>
+// This script block will be more focused now, as global handlers are in footer_resources.php
+// The prepareInvoiceModal function and its associated item management script from invoice_modal.php are crucial.
 
-    // Function to fetch full invoice data for editing (header + items)
-    // This is a placeholder. In a real app, this would be an AJAX call or data passed via PHP.
-    async function fetchInvoiceDataForEdit(invoiceId) {
-        // Simulate fetching data. Replace with actual AJAX call.
-        // For now, we'll try to get data from a hypothetical PHP endpoint or use data attributes.
-        // This example assumes you might have a PHP script that returns JSON for an invoice.
-        // const response = await fetch('<?php echo base_url("invoices/get_invoice_details_ajax.php?id="); ?>' + invoiceId);
-        // if (!response.ok) {
-        //     alert('Failed to fetch invoice details for editing.');
-        //     return null;
-        // }
-        // return await response.json();
-
-        // Fallback: If no AJAX, this function needs to be smarter or data preloaded.
-        // For this "no AJAX" version, we'll assume the button triggering edit might have some data,
-        // but items are the tricky part.
-        console.warn("Fetching full invoice data for edit (ID: " + invoiceId + ") needs a robust server-side mechanism or preloaded JS data due to 'no AJAX' constraint for items.");
-        return null; // Indicates data needs to be populated by other means
+async function fetchInvoiceItemsForEdit(invoiceId) {
+    try {
+        const response = await fetch(`<?php echo base_url('invoices/ajax_get_invoice_items.php'); ?>?invoice_id=${invoiceId}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching invoice items:", error);
+        Swal.fire('خطأ!', 'فشل في جلب بنود الفاتورة للتعديل.', 'error');
+        return { success: false, items: [] }; // Return empty on error
     }
+}
 
 
-    if (invoiceModal) {
-        invoiceModal.addEventListener('show.bs.modal', async function (event) { // Made async for fetch
-            var button = event.relatedTarget;
-            var action = button.getAttribute('data-action');
-            var modalTitle = invoiceModal.querySelector('.modal-title');
-            var invoiceForm = invoiceModal.querySelector('#invoiceForm');
-            var invoiceIdInput = invoiceModal.querySelector('#invoice_id_modal');
-            var formActionInput = invoiceModal.querySelector('#invoice_form_action_modal');
-            var submitButtonText = invoiceModal.querySelector('#invoiceSubmitButtonText');
-            var leaseSelectModal = invoiceModal.querySelector('#lease_id_modal');
-            var tenantDirectSelectModal = invoiceModal.querySelector('#tenant_id_invoice_modal');
+async function prepareInvoiceModal(action, invoiceDataJSON = null) {
+    const invoiceModalEl = document.getElementById('invoiceModal');
+    const modalTitle = invoiceModalEl.querySelector('.modal-title');
+    const invoiceForm = invoiceModalEl.querySelector('#invoiceForm');
+    const invoiceIdInput = invoiceModalEl.querySelector('#invoice_id_modal');
+    const formActionInput = invoiceModalEl.querySelector('#invoice_form_action_modal');
+    const submitButtonText = invoiceModalEl.querySelector('#invoiceSubmitButtonText');
+    const itemsContainer = invoiceModalEl.querySelector('#invoiceItemsContainerModal');
+    const itemTemplate = invoiceModalEl.querySelector('#invoiceItemTemplateModal');
+    const leaseSelectModal = invoiceModalEl.querySelector('#lease_id_modal');
+    const tenantDirectSelectModal = invoiceModalEl.querySelector('#tenant_id_invoice_modal');
+    
+    invoiceForm.reset(); // Reset form fields
+    invoiceIdInput.value = '';
+    formActionInput.value = action;
 
-            invoiceForm.reset();
-            invoiceIdInput.value = '';
-            itemsContainerModal.querySelectorAll('.invoice-item-row-modal:not(#invoiceItemTemplateModal)').forEach(row => row.remove());
-            tenantDirectSelectModal.removeAttribute('disabled');
+    // Remove previously added item rows (excluding the template)
+    itemsContainer.querySelectorAll('.invoice-item-row-modal:not(#invoiceItemTemplateModal)').forEach(row => row.remove());
+    tenantDirectSelectModal.removeAttribute('disabled');
 
-            var form_url = '<?php echo base_url('invoices/invoice_actions.php'); ?>';
 
-            if (action === 'add_invoice') {
-                modalTitle.textContent = 'إنشاء فاتورة جديدة';
-                formActionInput.value = 'add_invoice';
-                submitButtonText.textContent = 'إنشاء الفاتورة';
-                invoiceForm.action = form_url;
-                
-                invoiceModal.querySelector('#invoice_date_modal').value = new Date().toISOString().slice(0,10);
-                invoiceModal.querySelector('#due_date_modal').value = new Date().toISOString().slice(0,10);
-                var now = new Date();
-                invoiceModal.querySelector('#invoice_time_modal').value = now.toTimeString().slice(0,8);
-                invoiceModal.querySelector('#invoice_status_modal').value = 'Unpaid';
-                invoiceModal.querySelector('#invoice_type_zatca_modal').value = 'SimplifiedInvoice';
-                invoiceModal.querySelector('#transaction_type_code_modal').value = '388';
-                invoiceModal.querySelector('#invoice_paid_amount_modal').value = '0.00';
-                invoiceModal.querySelector('#invoice_total_discount_modal').value = '0.00';
-                invoiceModal.querySelector('#invoice_vat_percentage_modal_header').value = '<?php echo $default_vat_percentage_js; ?>';
+    invoiceForm.action = '<?php echo base_url('invoices/invoice_actions.php'); ?>';
 
-                // Add one or two default item rows
-                var addItemButtonModal = document.getElementById('addItemBtnModal');
-                if(addItemButtonModal) {
-                    addItemButtonModal.click(); // Add one default item row
-                    // addItemButtonModal.click(); // Optionally add a second one
-                }
+    if (action === 'add_invoice') {
+        modalTitle.textContent = 'إنشاء فاتورة جديدة';
+        submitButtonText.textContent = 'إنشاء الفاتورة';
+        invoiceModalEl.querySelector('#invoice_date_modal').value = new Date().toISOString().slice(0,10);
+        invoiceModalEl.querySelector('#due_date_modal').value = new Date().toISOString().slice(0,10);
+        var now = new Date();
+        invoiceModalEl.querySelector('#invoice_time_modal').value = now.toTimeString().slice(0,8);
+        invoiceModalEl.querySelector('#invoice_status_modal').value = 'Unpaid';
+        invoiceModalEl.querySelector('#invoice_type_zatca_modal').value = 'SimplifiedInvoice';
+        invoiceModalEl.querySelector('#transaction_type_code_modal').value = '388';
+        invoiceModalEl.querySelector('#invoice_paid_amount_modal').value = '0.00';
+        invoiceModalEl.querySelector('#invoice_total_discount_modal').value = '0.00';
+        invoiceModalEl.querySelector('#invoice_vat_percentage_modal_header').value = '<?php echo $default_vat_percentage_js; ?>';
+        
+        // Add one default item row by cloning template
+        if (itemTemplate) {
+            const addItemButtonModal = document.getElementById('addItemBtnModal'); // Assuming addItemBtnModal is the ID of the add item button
+            if (addItemButtonModal) addItemButtonModal.click(); // Simulate click to add first row and attach its events
+        }
 
-            } else if (action === 'edit_invoice') { // Edit action
-                modalTitle.textContent = 'تعديل بيانات الفاتورة';
-                formActionInput.value = 'edit_invoice';
-                submitButtonText.textContent = 'حفظ التعديلات';
-                invoiceForm.action = form_url;
+    } else if (action === 'edit_invoice' && invoiceDataJSON) {
+        const invoiceData = JSON.parse(invoiceDataJSON);
+        modalTitle.textContent = 'تعديل الفاتورة رقم: ' + invoiceData.invoice_number;
+        submitButtonText.textContent = 'حفظ التعديلات';
+        invoiceIdInput.value = invoiceData.id;
 
-                var invoiceIdToEdit = button.getAttribute('data-invoice_id');
-                invoiceIdInput.value = invoiceIdToEdit;
-
-                // Attempt to populate header from button data attributes (basic)
-                // This should ideally come from a comprehensive data source for the invoice
-                if(document.getElementById('invoice_number_modal')) document.getElementById('invoice_number_modal').value = button.getAttribute('data-invoice_number') || '';
-                if(document.getElementById('invoice_sequence_number_modal')) document.getElementById('invoice_sequence_number_modal').value = button.getAttribute('data-invoice_sequence_number') || '';
-                // ... (populate other header fields similarly if available on button) ...
-                // This is where you would call `await fetchInvoiceDataForEdit(invoiceIdToEdit)`
-                // and then use the response to populate ALL fields, including items.
-                
-                // For "no AJAX", the view_invoice.php page's JS (prepareEditInvoice) is a better place to populate this.
-                // If this modal is directly on index.php, then index.php needs to make all invoice data (with items)
-                // available to JS, perhaps in a data attribute on the edit button or a global JS object.
-                
-                alert("للتعديل الكامل: يجب تحميل بيانات الفاتورة وبنودها هنا. حاليًا، يتم ملء الرأس فقط بشكل جزئي.");
-                // As a placeholder, add one item row for editing.
-                 var addItemButtonModalEdit = document.getElementById('addItemBtnModal');
-                 if(addItemButtonModalEdit && itemsContainerModal.querySelectorAll('.invoice-item-row-modal:not(#invoiceItemTemplateModal)').length === 0) {
-                    addItemButtonModalEdit.click();
-                 }
-            }
-            // Trigger calculation and lease-tenant logic after populating (or for add)
-            if(invoiceModal.querySelector('#invoice_total_discount_modal')) invoiceModal.querySelector('#invoice_total_discount_modal').dispatchEvent(new Event('change'));
-            if(leaseSelectModal && leaseSelectModal.value) leaseSelectModal.dispatchEvent(new Event('change'));
-        });
-
-         // Auto-open modal if 'action=open_add_modal' is in URL
-        const urlParamsForInvoice = new URLSearchParams(window.location.search);
-        if (urlParamsForInvoice.has('action') && urlParamsForInvoice.get('action') === 'open_add_modal') {
-            var addInvoiceButton = document.querySelector('button[data-bs-target="#invoiceModal"][data-action="add_invoice"]');
-            if (addInvoiceButton) {
-                // Directly trigger the modal's 'show.bs.modal' event by simulating a click on the button
-                // This ensures the modal's own setup logic for 'add_invoice' runs.
-                addInvoiceButton.click();
+        // Populate header fields
+        if(document.getElementById('invoice_number_modal')) document.getElementById('invoice_number_modal').value = invoiceData.invoice_number || '';
+        if(document.getElementById('invoice_sequence_number_modal')) document.getElementById('invoice_sequence_number_modal').value = invoiceData.invoice_sequence_number || '';
+        if(document.getElementById('invoice_date_modal')) document.getElementById('invoice_date_modal').value = invoiceData.invoice_date || '';
+        if(document.getElementById('invoice_time_modal')) document.getElementById('invoice_time_modal').value = invoiceData.invoice_time || '';
+        if(document.getElementById('due_date_modal')) document.getElementById('due_date_modal').value = invoiceData.due_date || '';
+        if(document.getElementById('invoice_type_zatca_modal')) document.getElementById('invoice_type_zatca_modal').value = invoiceData.invoice_type_zatca || 'SimplifiedInvoice';
+        if(document.getElementById('transaction_type_code_modal')) document.getElementById('transaction_type_code_modal').value = invoiceData.transaction_type_code || '388';
+        if(document.getElementById('invoice_status_modal')) document.getElementById('invoice_status_modal').value = invoiceData.status || 'Unpaid';
+        if(leaseSelectModal) leaseSelectModal.value = invoiceData.lease_id || '';
+        if(tenantDirectSelectModal) {
+            tenantDirectSelectModal.value = invoiceData.tenant_id || '';
+            if(invoiceData.lease_id){
+                tenantDirectSelectModal.setAttribute('disabled', 'disabled');
             }
         }
-    }
+        if(document.getElementById('purchase_order_id_modal')) document.getElementById('purchase_order_id_modal').value = invoiceData.purchase_order_id || '';
+        if(document.getElementById('contract_id_modal_invoice')) document.getElementById('contract_id_modal_invoice').value = invoiceData.contract_id || '';
+        if(document.getElementById('invoice_description_modal')) document.getElementById('invoice_description_modal').value = invoiceData.description || '';
+        if(document.getElementById('zatca_notes_modal')) document.getElementById('zatca_notes_modal').value = invoiceData.notes_zatca || '';
+        if(document.getElementById('invoice_total_discount_modal')) document.getElementById('invoice_total_discount_modal').value = parseFloat(invoiceData.discount_amount || 0).toFixed(2);
+        if(document.getElementById('invoice_vat_percentage_modal_header')) document.getElementById('invoice_vat_percentage_modal_header').value = parseFloat(invoiceData.vat_percentage || <?php echo $default_vat_percentage_js; ?>).toFixed(2);
+        if(document.getElementById('invoice_paid_amount_modal')) document.getElementById('invoice_paid_amount_modal').value = parseFloat(invoiceData.paid_amount || 0).toFixed(2);
 
-
-    var confirmDeleteModalInvoice = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalInvoice) {
-        confirmDeleteModalInvoice.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-invoice-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalInvoice.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف ' + itemName + '؟';
-                var additionalInfo = confirmDeleteModalInvoice.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: سيتم حذف الفاتورة وجميع بنودها المرتبطة. لا يمكن التراجع عن هذا الإجراء.';
-                var confirmDeleteButton = confirmDeleteModalInvoice.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) confirmDeleteButton.setAttribute('href', deleteUrl);
-            }
-        });
+        // Fetch and populate items
+        const itemsData = await fetchInvoiceItemsForEdit(invoiceData.id);
+        if (itemsData.success && itemsData.items.length > 0) {
+            const addItemButtonModal = document.getElementById('addItemBtnModal');
+            itemsData.items.forEach(item => {
+                if (addItemButtonModal) addItemButtonModal.click(); // Add a new row using existing logic
+                var lastItemRow = itemsContainer.querySelector('.invoice-item-row-modal:not(#invoiceItemTemplateModal):last-child');
+                if (lastItemRow) {
+                    if(lastItemRow.querySelector('.item-name')) lastItemRow.querySelector('.item-name').value = item.item_name || '';
+                    if(lastItemRow.querySelector('.item-quantity')) lastItemRow.querySelector('.item-quantity').value = parseFloat(item.quantity || 1).toFixed(2);
+                    if(lastItemRow.querySelector('.item-unit-price')) lastItemRow.querySelector('.item-unit-price').value = parseFloat(item.unit_price_before_vat || 0).toFixed(2);
+                    if(lastItemRow.querySelector('.item-vat-category')) lastItemRow.querySelector('.item-vat-category').value = item.item_vat_category_code || 'S';
+                    if(lastItemRow.querySelector('.item-vat-percentage')) lastItemRow.querySelector('.item-vat-percentage').value = parseFloat(item.item_vat_percentage || <?php echo $default_vat_percentage_js; ?>).toFixed(2);
+                    if(lastItemRow.querySelector('.item-discount')) lastItemRow.querySelector('.item-discount').value = parseFloat(item.item_discount_amount || 0).toFixed(2);
+                }
+            });
+        } else if (itemsData.items.length === 0) { // If no items, add one blank row
+            const addItemButtonModal = document.getElementById('addItemBtnModal');
+            if (addItemButtonModal) addItemButtonModal.click();
+        }
     }
     
-    document.querySelectorAll('.process-zatca-btn').forEach(button => {
+    // Trigger calculation after populating
+    // The calculateInvoiceTotals function should be available from invoice_modal.php's script part
+    if(typeof calculateInvoiceTotals === "function") calculateInvoiceTotals();
+    if(leaseSelectModal && leaseSelectModal.value) leaseSelectModal.dispatchEvent(new Event('change'));
+
+
+}
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Old confirmDeleteModalInvoice JavaScript block removed.
+    // The form submission for invoiceForm is handled directly by invoice_modal.php's script
+    // So no additional fetch handler needed here unless you want to override it.
+    // Ensure the script in invoice_modal.php uses SweetAlert.
+    // If invoice_actions.php redirects after POST, SweetAlert in footer will handle it.
+    // If invoice_actions.php echoes JSON, the JS in invoice_modal.php should handle it with SweetAlert.
+    // The existing invoice_actions.php uses set_message and redirect.
+
+    // SweetAlert for ZATCA processing
+    document.querySelectorAll('.sweet-process-zatca-btn').forEach(button => {
         button.addEventListener('click', function() {
             var invoiceId = this.getAttribute('data-invoice-id');
             var invoiceTypeZatca = this.getAttribute('data-invoice-type-zatca');
             var confirmationMessage = "سيتم الآن محاولة معالجة الفاتورة رقم " + invoiceId + " (نوع ZATCA: " + invoiceTypeZatca + ") وإرسالها إلى هيئة الزكاة والضريبة والجمارك.\n\nهل أنت متأكد أنك تريد المتابعة؟";
             
-            // Simple confirm, replace with a styled modal for better UX
-            if (confirm(confirmationMessage)) {
-                // Redirect to an action handler or use AJAX if preferred (though constraint is no AJAX)
-                // For now, let's assume a GET request to the action handler for simplicity of this example.
-                // A POST request would be better for actions that change state.
-                var processUrl = '<?php echo base_url("invoices/invoice_actions.php?action=process_zatca_submission&id="); ?>' + invoiceId + '&csrf_token=<?php echo $csrf_token; ?>';
-                // window.location.href = processUrl; // This would be for a GET request
-                
-                // For a POST-like action without true AJAX, you might submit a hidden form:
-                var hiddenForm = document.createElement('form');
-                hiddenForm.method = 'POST';
-                hiddenForm.action = '<?php echo base_url("invoices/invoice_actions.php"); ?>';
-                
-                var actionInput = document.createElement('input');
-                actionInput.type = 'hidden'; actionInput.name = 'action'; actionInput.value = 'process_zatca_submission';
-                hiddenForm.appendChild(actionInput);
+            Swal.fire({
+                title: 'تأكيد معالجة ZATCA',
+                text: confirmationMessage,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'نعم، متابعة!',
+                cancelButtonText: 'إلغاء'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Using a hidden form to submit POST data for ZATCA processing
+                    var hiddenForm = document.createElement('form');
+                    hiddenForm.method = 'POST';
+                    hiddenForm.action = '<?php echo base_url("invoices/process_zatca_submission.php"); // Assuming a dedicated handler ?>';
+                    
+                    var actionInput = document.createElement('input');
+                    actionInput.type = 'hidden'; actionInput.name = 'action'; actionInput.value = 'process_zatca_submission';
+                    hiddenForm.appendChild(actionInput);
 
-                var idInput = document.createElement('input');
-                idInput.type = 'hidden'; idInput.name = 'invoice_id'; idInput.value = invoiceId;
-                hiddenForm.appendChild(idInput);
+                    var idInput = document.createElement('input');
+                    idInput.type = 'hidden'; idInput.name = 'invoice_id'; idInput.value = invoiceId;
+                    hiddenForm.appendChild(idInput);
 
-                var csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden'; csrfInput.name = 'csrf_token'; csrfInput.value = '<?php echo $csrf_token; ?>';
-                hiddenForm.appendChild(csrfInput);
-                
-                document.body.appendChild(hiddenForm);
-                hiddenForm.submit();
-                
-                // alert('جاري معالجة الفاتورة مع ZATCA... (هذا الجزء قيد التطوير الفعلي للاتصال بالـ API)');
-            }
+                    var csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden'; csrfInput.name = 'csrf_token'; csrfInput.value = '<?php echo $csrf_token; ?>';
+                    hiddenForm.appendChild(csrfInput);
+                    
+                    document.body.appendChild(hiddenForm);
+                    hiddenForm.submit();
+                }
+            });
         });
     });
+
+    // Auto-open modal if 'action=open_add_modal' is in URL
+    const urlParamsForInvoice = new URLSearchParams(window.location.search);
+    if (urlParamsForInvoice.has('action') && urlParamsForInvoice.get('action') === 'open_add_modal') {
+        var invoiceModalToOpen = new bootstrap.Modal(document.getElementById('invoiceModal'));
+        prepareInvoiceModal('add_invoice').then(() => { // Ensure modal content is ready
+           invoiceModalToOpen.show();
+        });
+    }
 });
 </script>
 <?php require_once __DIR__ . '/../includes/footer_resources.php'; ?>

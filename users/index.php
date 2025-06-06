@@ -3,20 +3,20 @@ $page_title = "إدارة المستخدمين";
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/session_manager.php';
 require_login();
-require_role('admin'); // فقط المسؤول يمكنه الوصول لهذه الصفحة
+require_role('admin'); 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
+// Pagination variables
 $current_page = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
 $items_per_page = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset = ($current_page - 1) * $items_per_page;
 
-// وظيفة البحث والفلترة
+// Search and filter functionality
 $search_term_user = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $filter_role_id_user = isset($_GET['role_id']) && filter_var($_GET['role_id'], FILTER_VALIDATE_INT) ? (int)$_GET['role_id'] : '';
-$filter_active_user = isset($_GET['is_active']) ? sanitize_input($_GET['is_active']) : ''; // '0', '1', or ''
+$filter_active_user = isset($_GET['is_active']) ? sanitize_input($_GET['is_active']) : ''; 
 
 $where_clauses_user = [];
 $params_for_count_user = []; $types_for_count_user = "";
@@ -46,9 +46,10 @@ if (!empty($where_clauses_user)) {
     $where_sql_user = " WHERE " . implode(" AND ", $where_clauses_user);
 }
 
-// الحصول على العدد الإجمالي للمستخدمين
+// Get total number of users
 $total_sql_user = "SELECT COUNT(u.id) as total FROM users u" . $where_sql_user;
 $stmt_total_user = $mysqli->prepare($total_sql_user);
+$total_users = 0;
 if ($stmt_total_user) {
     if (!empty($params_for_count_user)) {
         $stmt_total_user->bind_param($types_for_count_user, ...$params_for_count_user);
@@ -58,12 +59,11 @@ if ($stmt_total_user) {
     $total_users = ($total_result_user && $total_result_user->num_rows > 0) ? $total_result_user->fetch_assoc()['total'] : 0;
     $stmt_total_user->close();
 } else {
-    $total_users = 0;
     error_log("SQL Prepare Error for counting users: " . $mysqli->error);
 }
 $total_pages_user = ceil($total_users / $items_per_page);
 
-// جلب المستخدمين للصفحة الحالية مع اسم الدور
+// Fetch users for the current page
 $sql_user = "SELECT u.id, u.full_name, u.username, u.email, u.created_at, u.is_active, u.role_id, r.display_name_ar as role_display_name, r.role_name as role_name_system
              FROM users u
              LEFT JOIN roles r ON u.role_id = r.id"
@@ -77,9 +77,9 @@ $current_data_types_user = $types_for_data_user . 'ii';
 $users_list = [];
 $stmt_user = $mysqli->prepare($sql_user);
 if ($stmt_user) {
-    if (!empty($current_data_params_user)) { // Check if array is not empty before spread
+    if (!empty($current_data_params_user) && $current_data_types_user !== '') { 
         $stmt_user->bind_param($current_data_types_user, ...$current_data_params_user);
-    } else { // Only limit and offset if no filter params
+    } else { 
         $stmt_user->bind_param('ii', $items_per_page, $offset);
     }
     $stmt_user->execute();
@@ -90,8 +90,8 @@ if ($stmt_user) {
     error_log("SQL Prepare Error for fetching users: " . $mysqli->error);
 }
 
-// جلب قائمة الأدوار للفلتر
-$roles_filter_list = [['id' => '', 'display_name_ar' => '-- الكل --']]; // Add "All" option
+// Fetch roles list for filter
+$roles_filter_list = [['id' => '', 'display_name_ar' => '-- الكل --']]; 
 $roles_query_filter_page = "SELECT id, display_name_ar FROM roles ORDER BY display_name_ar ASC";
 $roles_result_filter_page = $mysqli->query($roles_query_filter_page);
 if ($roles_result_filter_page) {
@@ -101,7 +101,7 @@ if ($roles_result_filter_page) {
     $roles_result_filter_page->free();
 }
 
-$user_active_filter_options = [ // Renamed to avoid conflict if modal defines similarly
+$user_active_filter_options = [ 
     '' => '-- الكل --',
     '1' => 'نشط',
     '0' => 'غير نشط'
@@ -196,12 +196,12 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل المستخدم">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <?php if ($user_item['username'] !== 'admin'): // لا يمكن حذف المستخدم 'admin' الافتراضي ?>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-user-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <?php if ($user_item['username'] !== 'admin'): ?>
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-user-btn"
                                         data-id="<?php echo $user_item['id']; ?>"
                                         data-name="المستخدم <?php echo esc_attr($user_item['username']); ?>"
                                         data-delete-url="<?php echo base_url('users/user_actions.php?action=delete_user&id=' . $user_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="سيتم حذف المستخدم بشكل نهائي ولا يمكن استعادته."
                                         title="حذف المستخدم">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -224,7 +224,7 @@ $csrf_token = generate_csrf_token();
             <?php
             $pagination_params_user = [];
             if (!empty($search_term_user)) $pagination_params_user['search'] = $search_term_user;
-            if (!empty($filter_role_id_user)) $pagination_params_user['role_id'] = $filter_role_id_user; // تم التغيير إلى role_id
+            if (!empty($filter_role_id_user)) $pagination_params_user['role_id'] = $filter_role_id_user;
             if ($filter_active_user !== '') $pagination_params_user['is_active'] = $filter_active_user;
             echo generate_pagination_links($current_page, $total_pages_user, 'users/index.php', $pagination_params_user);
             ?>
@@ -235,22 +235,22 @@ $csrf_token = generate_csrf_token();
 
 <?php
 require_once __DIR__ . '/../includes/modals/user_modal.php';
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer required here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function prepareUserModal(action, userData = null) {
-    const userModal = document.getElementById('userModal'); // معرف النافذة المنبثقة
+    const userModal = document.getElementById('userModal'); 
     const modalTitle = userModal.querySelector('.modal-title');
-    const userForm = userModal.querySelector('#userFormModal'); // معرف النموذج داخل النافذة المنبثقة
+    const userForm = userModal.querySelector('#userFormModal'); 
     const userIdInput = userModal.querySelector('#user_id_modal_users');
     const actionInput = userModal.querySelector('#user_form_action_modal');
-    const submitButton = userModal.querySelector('#userSubmitButtonTextModal'); // معرف زر الإرسال
+    const submitButtonText = userModal.querySelector('#userSubmitButtonTextModal'); // Changed from submitButton
     const passwordInput = userModal.querySelector('#user_password_modal');
     const confirmPasswordInput = userModal.querySelector('#user_confirm_password_modal');
     const passwordHelpBlock = userModal.querySelector('#passwordHelpBlock_modal');
     const usernameInput = userModal.querySelector('#user_username_modal');
-
 
     userForm.reset();
     userIdInput.value = '';
@@ -259,27 +259,25 @@ function prepareUserModal(action, userData = null) {
     confirmPasswordInput.removeAttribute('required');
     usernameInput.removeAttribute('readonly');
 
-
-    const formUrl = '<?php echo base_url('users/user_actions.php'); ?>';
-    userForm.action = formUrl; // لم يعد ضرورياً إذا كنت تستخدم fetch
+    // No need to set form.action if using fetch correctly with its own URL parameter
 
     if (action === 'add_user') {
         modalTitle.textContent = 'إضافة مستخدم جديد';
-        submitButton.textContent = 'إضافة المستخدم';
+        submitButtonText.textContent = 'إضافة المستخدم';
         passwordInput.setAttribute('required', 'required');
         confirmPasswordInput.setAttribute('required', 'required');
         passwordHelpBlock.textContent = 'كلمة المرور مطلوبة عند إضافة مستخدم جديد.';
     } else if (action === 'edit_user' && userData) {
         modalTitle.textContent = 'تعديل بيانات المستخدم: ' + userData.full_name;
-        submitButton.textContent = 'حفظ التعديلات';
+        submitButtonText.textContent = 'حفظ التعديلات';
         passwordHelpBlock.textContent = 'اتركه فارغًا لعدم تغيير كلمة المرور الحالية.';
         
         userIdInput.value = userData.id;
         userModal.querySelector('#user_full_name_modal').value = userData.full_name || '';
-        userModal.querySelector('#user_username_modal').value = userData.username || '';
+        usernameInput.value = userData.username || ''; // Changed from userModal.querySelector
         userModal.querySelector('#user_email_modal').value = userData.email || '';
-        userModal.querySelector('#user_role_id_modal').value = userData.role_id || ''; // role_id الآن
-        userModal.querySelector('#user_is_active_modal').value = String(userData.is_active); // تأكد أنه سلسلة نصية للقيمة '0' أو '1'
+        userModal.querySelector('#user_role_id_modal').value = userData.role_id || '';
+        userModal.querySelector('#user_is_active_modal').value = String(userData.is_active);
 
         if (userData.username === 'admin') {
             usernameInput.setAttribute('readonly', 'readonly');
@@ -288,48 +286,14 @@ function prepareUserModal(action, userData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // التعامل مع نافذة تأكيد الحذف
-    var confirmDeleteModalUser = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalUser) {
-        confirmDeleteModalUser.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-user-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalUser.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف ' + itemName + '؟';
-                
-                var additionalInfo = confirmDeleteModalUser.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'سيتم حذف المستخدم بشكل نهائي ولا يمكن استعادته.';
-
-                var confirmDeleteButton = confirmDeleteModalUser.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    // Remove previous event listener to avoid multiple fires due to cloning/replacing
-                    var newConfirmDeleteButton = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButton, confirmDeleteButton);
-                    
-                    newConfirmDeleteButton.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButton.removeAttribute('href');
-                    
-                    newConfirmDeleteButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if (urlToDelete) {
-                            window.location.href = urlToDelete; // For GET-based delete
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    // Handle AJAX form submission for userForm
-    const userFormElement = document.getElementById('userFormModal'); // تم تغيير ID
+    // The old confirmDeleteModalUser JavaScript block is removed.
+    
+    const userFormElement = document.getElementById('userFormModal');
     if(userFormElement) {
         userFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
             const formData = new FormData(userFormElement);
-            const actionUrl = userFormElement.getAttribute('action');
+            const actionUrl = '<?php echo base_url('users/user_actions.php'); ?>'; // Action URL defined here
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -337,17 +301,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('userModal'));
                 if (data.success) {
-                    var userModalInstance = bootstrap.Modal.getInstance(document.getElementById('userModal'));
-                    if(userModalInstance) userModalInstance.hide();
-                    window.location.reload();
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload();
+                    });
                 } else {
-                    alert('خطأ: ' + data.message);
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

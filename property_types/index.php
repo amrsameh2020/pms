@@ -3,17 +3,17 @@ $page_title = "إدارة أنواع العقارات";
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/session_manager.php';
 require_login();
-// require_role('admin'); // يمكنك إضافة هذا إذا كانت هذه الصفحة للمسؤول فقط
+// require_role('admin'); 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
+// Pagination variables
 $current_page_ptype = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
 $items_per_page_ptype = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset_ptype = ($current_page_ptype - 1) * $items_per_page_ptype;
 
-// وظيفة البحث
+// Search
 $search_term_ptype = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $search_query_part_ptype = '';
 $params_for_count_ptype = [];
@@ -30,12 +30,12 @@ if (!empty($search_term_ptype)) {
     $types_for_data_ptype = $types_for_count_ptype;
 }
 
-// الحصول على العدد الإجمالي لأنواع العقارات
+// Get total property types
 $total_sql_ptype = "SELECT COUNT(*) as total FROM property_types" . $search_query_part_ptype;
 $stmt_total_ptype = $mysqli->prepare($total_sql_ptype);
 $total_property_types = 0;
 if ($stmt_total_ptype) {
-    if (!empty($params_for_count_ptype)) {
+    if (!empty($params_for_count_ptype) && $types_for_count_ptype !== '') {
         $stmt_total_ptype->bind_param($types_for_count_ptype, ...$params_for_count_ptype);
     }
     $stmt_total_ptype->execute();
@@ -47,7 +47,7 @@ if ($stmt_total_ptype) {
 }
 $total_pages_ptype = ceil($total_property_types / $items_per_page_ptype);
 
-// جلب أنواع العقارات للصفحة الحالية
+// Fetch property types for current page
 $sql_ptype = "SELECT * FROM property_types" . $search_query_part_ptype . " ORDER BY display_name_ar ASC LIMIT ? OFFSET ?";
 $current_data_params_ptype = $params_for_data_ptype;
 $current_data_params_ptype[] = $items_per_page_ptype;
@@ -57,7 +57,7 @@ $current_data_types_ptype = $types_for_data_ptype . 'ii';
 $property_types_list_page = [];
 $stmt_ptype = $mysqli->prepare($sql_ptype);
 if ($stmt_ptype) {
-    if (!empty($current_data_params_ptype)) {
+    if (!empty($current_data_params_ptype) && $current_data_types_ptype !== 'ii') {
         $stmt_ptype->bind_param($current_data_types_ptype, ...$current_data_params_ptype);
     } else {
         $stmt_ptype->bind_param('ii', $items_per_page_ptype, $offset_ptype);
@@ -127,11 +127,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل نوع العقار">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-property-type-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-property-type-btn"
                                         data-id="<?php echo $ptype_item['id']; ?>"
                                         data-name="<?php echo esc_attr($ptype_item['display_name_ar']); ?>"
                                         data-delete-url="<?php echo base_url('property_types/actions.php?action=delete_property_type&id=' . $ptype_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: لا يمكن حذف نوع العقار إذا كان مستخدماً في أي عقارات حالية."
                                         title="حذف نوع العقار">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -156,20 +156,19 @@ $csrf_token = generate_csrf_token();
 </div>
 
 <?php
-// تضمين نافذة إضافة/تعديل نوع العقار
 require_once __DIR__ . '/../includes/modals/property_type_modal.php';
-// تضمين نافذة تأكيد الحذف
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer required here
 ?>
 
-</div> <script>
+</div> 
+<script>
 function preparePropertyTypeModal(action, ptypeData = null) {
     const ptypeModal = document.getElementById('propertyTypeModal');
     const modalTitle = ptypeModal.querySelector('#propertyTypeModalLabel_ptypes');
     const ptypeForm = ptypeModal.querySelector('#propertyTypeFormModal');
     const ptypeIdInput = ptypeModal.querySelector('#property_type_id_modal_ptypes');
     const actionInput = ptypeModal.querySelector('#property_type_form_action_modal_ptypes');
-    const submitButton = ptypeModal.querySelector('#propertyTypeSubmitButtonTextModalPtypes');
+    const submitButtonText = ptypeModal.querySelector('#propertyTypeSubmitButtonTextModalPtypes');
 
     ptypeForm.reset();
     if(ptypeIdInput) ptypeIdInput.value = '';
@@ -177,10 +176,10 @@ function preparePropertyTypeModal(action, ptypeData = null) {
 
     if (action === 'add_property_type') {
         modalTitle.textContent = 'إضافة نوع عقار جديد';
-        if(submitButton) submitButton.textContent = 'إضافة النوع';
+        if(submitButtonText) submitButtonText.textContent = 'إضافة النوع';
     } else if (action === 'edit_property_type' && ptypeData) {
         modalTitle.textContent = 'تعديل نوع العقار: ' + ptypeData.display_name_ar;
-        if(submitButton) submitButton.textContent = 'حفظ التعديلات';
+        if(submitButtonText) submitButtonText.textContent = 'حفظ التعديلات';
         if(ptypeIdInput) ptypeIdInput.value = ptypeData.id;
         
         let nameInput = ptypeModal.querySelector('#property_type_name_modal_ptypes');
@@ -191,38 +190,7 @@ function preparePropertyTypeModal(action, ptypeData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalPType = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalPType) {
-        confirmDeleteModalPType.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-property-type-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalPType.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف نوع العقار "' + itemName + '"؟';
-                
-                var additionalInfo = confirmDeleteModalPType.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: لا يمكن حذف نوع العقار إذا كان مستخدماً في أي عقارات حالية.';
-
-                var confirmDeleteButton = confirmDeleteModalPType.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonPType = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonPType, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonPType.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonPType.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonPType.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
+    // Old confirmDeleteModalPType JavaScript block removed.
 
     const ptypeFormElement = document.getElementById('propertyTypeFormModal');
     if(ptypeFormElement) {
@@ -237,17 +205,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('propertyTypeModal'));
                 if (data.success) {
-                    var ptypeModalInstance = bootstrap.Modal.getInstance(document.getElementById('propertyTypeModal'));
-                    if(ptypeModalInstance) ptypeModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                     Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }

@@ -3,17 +3,17 @@ $page_title = "إدارة أنواع عقود الإيجار";
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/session_manager.php';
 require_login();
-// require_role('admin'); // يمكنك إضافة هذا إذا كانت هذه الصفحة للمسؤول فقط
+// require_role('admin'); 
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/header_resources.php';
 require_once __DIR__ . '/../includes/navigation.php';
 
-// متغيرات التصفح
+// Pagination variables
 $current_page_ltype = isset($_GET['page']) && filter_var($_GET['page'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ? (int)$_GET['page'] : 1;
 $items_per_page_ltype = defined('ITEMS_PER_PAGE_INT') ? ITEMS_PER_PAGE_INT : 10;
 $offset_ltype = ($current_page_ltype - 1) * $items_per_page_ltype;
 
-// وظيفة البحث (بسيطة للاسم المعروض أو المعرف)
+// Search
 $search_term_ltype = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
 $search_query_part_ltype = '';
 $params_for_count_ltype = [];
@@ -26,11 +26,11 @@ if (!empty($search_term_ltype)) {
     $search_like_ltype = "%" . $search_term_ltype . "%";
     $params_for_count_ltype = [$search_like_ltype, $search_like_ltype];
     $types_for_count_ltype = "ss";
-    $params_for_data_ltype = $params_for_count_ltype; // نفس المعلمات بدون LIMIT/OFFSET
+    $params_for_data_ltype = $params_for_count_ltype; 
     $types_for_data_ltype = $types_for_count_ltype;
 }
 
-// الحصول على العدد الإجمالي لأنواع العقود
+// Get total lease types
 $total_sql_ltype = "SELECT COUNT(*) as total FROM lease_types" . $search_query_part_ltype;
 $stmt_total_ltype = $mysqli->prepare($total_sql_ltype);
 $total_lease_types = 0;
@@ -47,17 +47,17 @@ if ($stmt_total_ltype) {
 }
 $total_pages_ltype = ceil($total_lease_types / $items_per_page_ltype);
 
-// جلب أنواع العقود للصفحة الحالية
+// Fetch lease types for current page
 $sql_ltype = "SELECT * FROM lease_types" . $search_query_part_ltype . " ORDER BY display_name_ar ASC LIMIT ? OFFSET ?";
 $current_data_params_ltype = $params_for_data_ltype;
 $current_data_params_ltype[] = $items_per_page_ltype;
 $current_data_params_ltype[] = $offset_ltype;
 $current_data_types_ltype = $types_for_data_ltype . 'ii';
 
-$lease_types_list_page = []; // تم تغيير الاسم
+$lease_types_list_page = []; 
 $stmt_ltype = $mysqli->prepare($sql_ltype);
 if ($stmt_ltype) {
-    if (!empty($current_data_params_ltype)) {
+    if (!empty($current_data_params_ltype) && $current_data_types_ltype !== 'ii') {
         $stmt_ltype->bind_param($current_data_types_ltype, ...$current_data_params_ltype);
     } else {
         $stmt_ltype->bind_param('ii', $items_per_page_ltype, $offset_ltype);
@@ -127,11 +127,11 @@ $csrf_token = generate_csrf_token();
                                         title="تعديل نوع العقد">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-lease-type-btn"
-                                        data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                <button type="button" class="btn btn-sm btn-outline-danger sweet-delete-btn delete-lease-type-btn"
                                         data-id="<?php echo $ltype_item['id']; ?>"
                                         data-name="<?php echo esc_attr($ltype_item['display_name_ar']); ?>"
                                         data-delete-url="<?php echo base_url('lease_types/actions.php?action=delete_lease_type&id=' . $ltype_item['id'] . '&csrf_token=' . $csrf_token); ?>"
+                                        data-additional-message="ملاحظة: لا يمكن حذف نوع العقد إذا كان مستخدماً في أي عقود إيجار حالية."
                                         title="حذف نوع العقد">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -156,33 +156,30 @@ $csrf_token = generate_csrf_token();
 </div>
 
 <?php
-// تضمين نافذة إضافة/تعديل نوع عقد الإيجار
 require_once __DIR__ . '/../includes/modals/lease_type_modal.php';
-// تضمين نافذة تأكيد الحذف
-require_once __DIR__ . '/../includes/modals/confirm_delete_modal.php';
+// confirm_delete_modal.php is no longer required
 ?>
 
-</div> <script>
+</div> 
+<script>
 function prepareLeaseTypeModal(action, leaseTypeData = null) {
     const leaseTypeModal = document.getElementById('leaseTypeModal');
     const modalTitle = leaseTypeModal.querySelector('#leaseTypeModalLabel_ltypes');
     const leaseTypeForm = leaseTypeModal.querySelector('#leaseTypeFormModal');
     const leaseTypeIdInput = leaseTypeModal.querySelector('#lease_type_id_modal_ltypes');
     const actionInput = leaseTypeModal.querySelector('#lease_type_form_action_modal_ltypes');
-    const submitButton = leaseTypeModal.querySelector('#leaseTypeSubmitButtonTextModalLtypes');
+    const submitButtonText = leaseTypeModal.querySelector('#leaseTypeSubmitButtonTextModalLtypes'); // Corrected selector
 
     leaseTypeForm.reset();
     leaseTypeIdInput.value = '';
     actionInput.value = action;
 
-    // const formUrl = '<?php echo base_url('lease_types/actions.php'); ?>'; // Not needed for fetch
-
     if (action === 'add_lease_type') {
         modalTitle.textContent = 'إضافة نوع عقد إيجار جديد';
-        submitButton.textContent = 'إضافة النوع';
+        submitButtonText.textContent = 'إضافة النوع';
     } else if (action === 'edit_lease_type' && leaseTypeData) {
         modalTitle.textContent = 'تعديل نوع عقد الإيجار: ' + leaseTypeData.display_name_ar;
-        submitButton.textContent = 'حفظ التعديلات';
+        submitButtonText.textContent = 'حفظ التعديلات';
         leaseTypeIdInput.value = leaseTypeData.id;
         
         if(document.getElementById('lease_type_name_modal_ltypes')) document.getElementById('lease_type_name_modal_ltypes').value = leaseTypeData.type_name || '';
@@ -191,47 +188,14 @@ function prepareLeaseTypeModal(action, leaseTypeData = null) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    var confirmDeleteModalLeaseType = document.getElementById('confirmDeleteModal');
-    if (confirmDeleteModalLeaseType) {
-        confirmDeleteModalLeaseType.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            if (button.classList.contains('delete-lease-type-btn')) {
-                var itemName = button.getAttribute('data-name');
-                var deleteUrl = button.getAttribute('data-delete-url');
-                var modalBodyText = confirmDeleteModalLeaseType.querySelector('.modal-body-text');
-                if(modalBodyText) modalBodyText.textContent = 'هل أنت متأكد أنك تريد حذف نوع العقد "' + itemName + '"؟';
-                
-                var additionalInfo = confirmDeleteModalLeaseType.querySelector('#additionalDeleteInfo');
-                if(additionalInfo) additionalInfo.textContent = 'ملاحظة: لا يمكن حذف نوع العقد إذا كان مستخدماً في أي عقود إيجار حالية.';
-
-                var confirmDeleteButton = confirmDeleteModalLeaseType.querySelector('#confirmDeleteButton');
-                if(confirmDeleteButton) {
-                    var newConfirmDeleteButtonLType = confirmDeleteButton.cloneNode(true);
-                    confirmDeleteButton.parentNode.replaceChild(newConfirmDeleteButtonLType, confirmDeleteButton);
-                    
-                    newConfirmDeleteButtonLType.setAttribute('data-delete-url', deleteUrl);
-                    newConfirmDeleteButtonLType.removeAttribute('href');
-                    
-                    newConfirmDeleteButtonLType.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const urlToDelete = this.getAttribute('data-delete-url');
-                        if(urlToDelete){
-                           window.location.href = urlToDelete;
-                        }
-                    });
-                }
-            }
-        });
-    }
+    // Old confirmDeleteModalLeaseType JavaScript block removed.
 
     const leaseTypeFormElement = document.getElementById('leaseTypeFormModal');
     if(leaseTypeFormElement) {
         leaseTypeFormElement.addEventListener('submit', function(event) {
             event.preventDefault();
             const formData = new FormData(leaseTypeFormElement);
-            // Action is set in the hidden input within the form
             const actionUrl = '<?php echo base_url('lease_types/actions.php'); ?>';
-
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -239,17 +203,34 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                var modalInstance = bootstrap.Modal.getInstance(document.getElementById('leaseTypeModal'));
                 if (data.success) {
-                    var leaseTypeModalInstance = bootstrap.Modal.getInstance(document.getElementById('leaseTypeModal'));
-                    if(leaseTypeModalInstance) leaseTypeModalInstance.hide();
-                    window.location.reload(); 
+                    if(modalInstance) modalInstance.hide();
+                    Swal.fire({
+                        title: 'نجاح!',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسنًا'
+                    }).then(() => {
+                        window.location.reload(); 
+                    });
                 } else {
-                    alert('خطأ: ' + data.message); 
+                    Swal.fire({
+                        title: 'خطأ!',
+                        text: data.message,
+                        icon: 'error',
+                        confirmButtonText: 'حسنًا'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('حدث خطأ غير متوقع.');
+                Swal.fire({
+                    title: 'خطأ!',
+                    text: 'حدث خطأ غير متوقع أثناء معالجة طلبك.',
+                    icon: 'error',
+                    confirmButtonText: 'حسنًا'
+                });
             });
         });
     }
