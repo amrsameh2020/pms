@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Jun 03, 2025 at 05:44 AM
+-- Generation Time: Jun 06, 2025 at 07:42 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -100,6 +100,26 @@ CREATE TABLE `audit_log` (
   `user_agent` varchar(255) DEFAULT NULL,
   `timestamp` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `audit_log`
+--
+
+INSERT INTO `audit_log` (`id`, `user_id`, `action_type`, `target_table`, `target_id`, `details`, `ip_address`, `user_agent`, `timestamp`) VALUES
+(1, NULL, 'LOGIN_ATTEMPT_FAILED', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-03 04:16:00'),
+(2, NULL, 'LOGIN_ATTEMPT_FAILED', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 04:21:11'),
+(3, NULL, 'LOGIN_ATTEMPT_FAILED', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 04:24:06'),
+(4, 1, 'LOGIN_SUCCESS', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 04:24:14'),
+(5, 1, 'LOGOUT', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 04:25:35'),
+(6, 1, 'LOGIN_SUCCESS', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 04:27:02'),
+(7, 1, 'LOGIN_SUCCESS', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 05:55:33'),
+(8, 1, 'CREATE_OWNER', 'owners', 2, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 05:56:47'),
+(9, 1, 'EDIT_OWNER', 'owners', 2, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 05:57:00'),
+(10, 1, 'LOGIN_SUCCESS', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 06:51:35'),
+(11, 1, 'CREATE_PROPERTY', 'properties', 2, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-04 07:02:58'),
+(12, 1, 'LOGIN_SUCCESS', 'users', 1, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-06 04:23:55'),
+(13, 1, 'EDIT_OWNER', 'owners', 2, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-06 04:30:25'),
+(14, 1, 'CREATE_PROPERTY', 'properties', 3, '0', '::1', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36', '2025-06-06 05:23:19');
 
 -- --------------------------------------------------------
 
@@ -250,7 +270,8 @@ CREATE TABLE `owners` (
 --
 
 INSERT INTO `owners` (`id`, `name`, `email`, `phone`, `national_id_iqama`, `address`, `registration_date`, `notes`, `created_by_id`, `created_at`, `updated_at`) VALUES
-(1, 'eng ahmed', 'test@test.com', '0505050505050', '7896523589', 'test address', NULL, NULL, 1, '2025-05-29 18:24:02', '2025-05-29 18:24:02');
+(1, 'eng ahmed', 'test@test.com', '0505050505050', '7896523589', 'test address', NULL, NULL, 1, '2025-05-29 18:24:02', '2025-05-29 18:24:02'),
+(2, 'مثنى للخدمات العقارية إدارة الأملاك', 'teste@test.cim', '855555', 'hhhhhh', 'شارع الملك عبدالعزيز', '2025-06-04', 'vggg', 1, '2025-06-04 05:56:47', '2025-06-06 04:30:25');
 
 -- --------------------------------------------------------
 
@@ -353,8 +374,7 @@ CREATE TABLE `properties` (
   `number_of_units` int(11) DEFAULT 0,
   `construction_year` year(4) DEFAULT NULL,
   `land_area_sqm` decimal(10,2) DEFAULT NULL,
-  `latitude` decimal(10,8) DEFAULT NULL,
-  `longitude` decimal(11,8) DEFAULT NULL,
+  `google_maps_link` text DEFAULT NULL COMMENT 'Link to the property location on Google Maps',
   `notes` text DEFAULT NULL,
   `created_by_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -365,8 +385,10 @@ CREATE TABLE `properties` (
 -- Dumping data for table `properties`
 --
 
-INSERT INTO `properties` (`id`, `owner_id`, `property_code`, `name`, `address`, `city`, `property_type_id`, `number_of_units`, `construction_year`, `land_area_sqm`, `latitude`, `longitude`, `notes`, `created_by_id`, `created_at`, `updated_at`) VALUES
-(1, 1, 'bld001', 'borg el kawsar', 'el rayida test address', 'test4545', 1, 1, NULL, 150.00, NULL, NULL, 'new notes', 1, '2025-05-29 18:27:07', '2025-05-29 18:27:07');
+INSERT INTO `properties` (`id`, `owner_id`, `property_code`, `name`, `address`, `city`, `property_type_id`, `number_of_units`, `construction_year`, `land_area_sqm`, `google_maps_link`, `notes`, `created_by_id`, `created_at`, `updated_at`) VALUES
+(1, 1, 'bld001', 'borg el kawsar', 'el rayida test address', 'test4545', 1, 1, NULL, 150.00, NULL, 'new notes', 1, '2025-05-29 18:27:07', '2025-05-29 18:27:07'),
+(2, 2, 'bld001ww', 'borg el kawsar', 'efrfrf', NULL, 2, 0, NULL, NULL, NULL, NULL, 1, '2025-06-04 07:02:58', '2025-06-04 07:02:58'),
+(3, 1, 'PROP-00003', 'borg el kawsarcv', 'cvbcvbcvb', 'cvbcvbc', 4, 2, '2022', 2000.00, NULL, '', 1, '2025-06-06 05:23:19', '2025-06-06 05:23:19');
 
 -- --------------------------------------------------------
 
@@ -505,6 +527,11 @@ CREATE TABLE `units` (
   `features` text DEFAULT NULL,
   `status` enum('Vacant','Occupied','Under Maintenance','Reserved') DEFAULT 'Vacant',
   `base_rent_price` decimal(10,2) DEFAULT NULL,
+  `electricity_meter_number` varchar(100) DEFAULT NULL,
+  `water_meter_number` varchar(100) DEFAULT NULL,
+  `is_furnished` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0 = No, 1 = Yes',
+  `has_parking` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0 = No, 1 = Yes',
+  `view_description` varchar(255) DEFAULT NULL COMMENT 'e.g., Sea View, Garden View',
   `notes` text DEFAULT NULL,
   `created_by_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -515,8 +542,10 @@ CREATE TABLE `units` (
 -- Dumping data for table `units`
 --
 
-INSERT INTO `units` (`id`, `property_id`, `unit_number`, `unit_type_id`, `floor_number`, `size_sqm`, `bedrooms`, `bathrooms`, `features`, `status`, `base_rent_price`, `notes`, `created_by_id`, `created_at`, `updated_at`) VALUES
-(1, 1, '101', 1, 2, 100.00, 2, 1, '0', 'Vacant', 5000.00, 'test', 1, '2025-05-29 18:40:18', '2025-05-29 18:40:18');
+INSERT INTO `units` (`id`, `property_id`, `unit_number`, `unit_type_id`, `floor_number`, `size_sqm`, `bedrooms`, `bathrooms`, `features`, `status`, `base_rent_price`, `electricity_meter_number`, `water_meter_number`, `is_furnished`, `has_parking`, `view_description`, `notes`, `created_by_id`, `created_at`, `updated_at`) VALUES
+(1, 1, '101', 1, 2, 100.00, 2, 1, '0', 'Vacant', 5000.00, NULL, NULL, 0, 0, NULL, 'test', 1, '2025-05-29 18:40:18', '2025-05-29 18:40:18'),
+(2, 3, '1', NULL, NULL, NULL, NULL, NULL, NULL, 'Vacant', NULL, NULL, NULL, 0, 0, NULL, NULL, 1, '2025-06-06 05:23:19', '2025-06-06 05:23:19'),
+(3, 3, '2', NULL, NULL, NULL, NULL, NULL, NULL, 'Vacant', NULL, NULL, NULL, 0, 0, NULL, NULL, 1, '2025-06-06 05:23:19', '2025-06-06 05:23:19');
 
 -- --------------------------------------------------------
 
@@ -904,7 +933,7 @@ ALTER TABLE `amenities`
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `billing_periods`
@@ -940,7 +969,7 @@ ALTER TABLE `lease_types`
 -- AUTO_INCREMENT for table `owners`
 --
 ALTER TABLE `owners`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `owner_documents`
@@ -970,7 +999,7 @@ ALTER TABLE `permissions`
 -- AUTO_INCREMENT for table `properties`
 --
 ALTER TABLE `properties`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `property_types`
@@ -1006,7 +1035,7 @@ ALTER TABLE `tenant_types`
 -- AUTO_INCREMENT for table `units`
 --
 ALTER TABLE `units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `unit_types`
